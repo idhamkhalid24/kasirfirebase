@@ -8,20 +8,24 @@ let userRole = null;    // Role pengguna (misal: 'admin', 'cashier')
 // --- Data Variables (Sekarang akan dimuat dari Firestore) ---
 let products = [];
 let currentTransactionItems = [];
+// FIX: transactionHistory dan expenses sekarang akan jadi global (bukan per user)
 let transactionHistory = [];
 let expenses = [];
 // Pengguna tidak lagi disimpan di sini secara lokal, melainkan di Firebase Auth dan Firestore
 // let users = [];
 let loggedInUser = null; // Objek pengguna yang sedang login dari Firebase Auth + role dari Firestore
 
+// FIX: dailyRevenue, lastRecordedDate, monthlyNetProfit, monthlyExpenses, lastRecordedMonth
+// sekarang akan diambil dari dokumen publik, bukan dari appState per user.
 let dailyRevenue = 0;
 let lastRecordedDate = ''; // Format:YYYY-MM-DD
-let isRevenueVisible = true;
-let isDarkMode = false;
-
 let monthlyNetProfit = 0;
 let monthlyExpenses = 0;
 let lastRecordedMonth = ''; // Format:YYYY-MM
+
+// Variabel user-specific yang tetap di appState pribadi
+let isRevenueVisible = true;
+let isDarkMode = false;
 
 // Bluetooth Printer variables (tetap lokal atau disimpan di Firestore appState)
 let bluetoothPrinterDevice = null;
@@ -266,12 +270,16 @@ let resetDataMessage;
 // APP_ID akan disediakan oleh lingkungan Canvas
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// FIX: Mengubah PUBLIC_PRODUCTS_COLLECTION_PATH menjadi 3 segmen yang valid
-const PUBLIC_PRODUCTS_COLLECTION_PATH = `artifacts/${APP_ID}/products`; // Path yang diperbaiki
+const PUBLIC_PRODUCTS_COLLECTION_PATH = `artifacts/${APP_ID}/products`; 
 const USER_APP_STATE_DOC_PATH = (uid) => `artifacts/${APP_ID}/users/${uid}/appState/settings`;
-const USER_TRANSACTIONS_COLLECTION_PATH = (uid) => `artifacts/${APP_ID}/users/${uid}/transactions`;
-const USER_EXPENSES_COLLECTION_PATH = (uid) => `artifacts/${APP_ID}/users/${uid}/expenses`;
 const USER_ROLES_COLLECTION_PATH = `users`; // Top-level collection for user roles, indexed by UID
+
+// FIX: Menambahkan path baru untuk data keuangan toko global
+const STORE_METRICS_DOC_PATH = `artifacts/${APP_ID}/storeMetrics/global`;
+
+// FIX: Mengubah path transaksi dan pengeluaran menjadi publik
+const PUBLIC_TRANSACTIONS_COLLECTION_PATH = `artifacts/${APP_ID}/transactions`;
+const PUBLIC_EXPENSES_COLLECTION_PATH = `artifacts/${APP_ID}/expenses`;
 
 
 // --- Hardcoded password for reset (sesuai permintaan pengguna) ---
@@ -281,9 +289,12 @@ const RESET_PASSWORD = "alfajrihanif24@gmail.com";
 // --- Firebase Listener Unsubscribe Functions ---
 // Kita akan menyimpan fungsi unsubscribe di sini agar bisa membersihkan listener saat logout
 let unsubscribeProducts = null;
-let unsubscribeTransactions = null;
-let unsubscribeExpenses = null;
-let unsubscribeAppState = null;
+// FIX: Mengubah unsubscribe untuk transaksi dan pengeluaran ke listener publik
+let unsubscribePublicTransactions = null;
+let unsubscribePublicExpenses = null;
+// FIX: Menambahkan unsubscribe untuk store metrics
+let unsubscribeStoreMetrics = null;
+let unsubscribeAppState = null; // Tetap untuk appState pribadi
 let unsubscribeUserRoles = null; // Listener untuk role pengguna saat ini
 
 // --- General Utility Functions (Penting: Pindahkan ke atas agar bisa dipanggil duluan) ---
@@ -491,10 +502,10 @@ function setupFirestoreListeners() {
         displayStatus("Error memuat produk dari Firestore.", "error");
     });
 
-    // Listener untuk Transactions (Privat per pengguna)
-    unsubscribeTransactions = window.onSnapshot(window.collection(db, USER_TRANSACTIONS_COLLECTION_PATH(currentUserId)), (snapshot) => { // Menggunakan window.onSnapshot dan window.collection
+    // FIX: Listener untuk Transactions (Sekarang Publik)
+    unsubscribePublicTransactions = window.onSnapshot(window.collection(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH), (snapshot) => {
         transactionHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log("Riwayat transaksi dimuat dari Firestore:", transactionHistory);
+        console.log("Riwayat transaksi dimuat dari Firestore (publik):", transactionHistory);
         // Render riwayat transaksi jika modalnya terbuka
         if (!transactionHistoryModal.classList.contains('hidden')) {
             renderTransactionHistory(historyStartDateInput.value, historyEndDateInput.value);
@@ -504,14 +515,14 @@ function setupFirestoreListeners() {
             calculateFinancialReport();
         }
     }, (error) => {
-        console.error("Error fetching transactions:", error);
+        console.error("Error fetching public transactions:", error);
         displayStatus("Error memuat riwayat transaksi dari Firestore.", "error");
     });
 
-    // Listener untuk Expenses (Privat per pengguna)
-    unsubscribeExpenses = window.onSnapshot(window.collection(db, USER_EXPENSES_COLLECTION_PATH(currentUserId)), (snapshot) => { // Menggunakan window.onSnapshot dan window.collection
+    // FIX: Listener untuk Expenses (Sekarang Publik)
+    unsubscribePublicExpenses = window.onSnapshot(window.collection(db, PUBLIC_EXPENSES_COLLECTION_PATH), (snapshot) => {
         expenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log("Pengeluaran dimuat dari Firestore:", expenses);
+        console.log("Pengeluaran dimuat dari Firestore (publik):", expenses);
         // Render pengeluaran jika modalnya terbuka
         if (!expensesModal.classList.contains('hidden')) {
             renderExpenses();
@@ -521,55 +532,70 @@ function setupFirestoreListeners() {
             calculateFinancialReport();
         }
     }, (error) => {
-        console.error("Error fetching expenses:", error);
+        console.error("Error fetching public expenses:", error);
         displayStatus("Error memuat pengeluaran dari Firestore.", "error");
     });
 
-    // Listener untuk App State (Privat per pengguna)
+    // FIX: Listener baru untuk Store Metrics (Pendapatan Harian/Bulanan Global)
+    unsubscribeStoreMetrics = window.onSnapshot(window.doc(db, STORE_METRICS_DOC_PATH), (docSnapshot) => {
+        if (docSnapshot.exists()) {
+            const storeMetricsData = docSnapshot.data();
+            dailyRevenue = storeMetricsData.dailyRevenue || 0;
+            lastRecordedDate = storeMetricsData.lastRecordedDate || '';
+            monthlyNetProfit = storeMetricsData.monthlyNetProfit || 0;
+            monthlyExpenses = storeMetricsData.monthlyExpenses || 0;
+            lastRecordedMonth = storeMetricsData.lastRecordedMonth || '';
+
+            console.log("Store metrics dimuat dari Firestore:", storeMetricsData);
+            checkAndResetDailyRevenue(); // Panggil ini untuk update UI dan reset jika tanggal/bulan berubah
+            updateHeaderDailyRevenue();
+            renderMonthlyFinancialBar();
+        } else {
+            console.log("Dokumen storeMetrics tidak ditemukan, membuat default.");
+            // Buat dokumen storeMetrics default jika tidak ada
+            window.setDoc(window.doc(db, STORE_METRICS_DOC_PATH), {
+                dailyRevenue: 0,
+                lastRecordedDate: new Date().toISOString().slice(0, 10),
+                monthlyNetProfit: 0,
+                monthlyExpenses: 0,
+                lastRecordedMonth: new Date().toISOString().slice(0, 7)
+            });
+        }
+    }, (error) => {
+        console.error("Error fetching store metrics:", error);
+        displayStatus("Error memuat metrik toko dari Firestore.", "error");
+    });
+
+    // Listener untuk App State (Privat per pengguna) - tetap sama
     unsubscribeAppState = window.onSnapshot(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), (docSnapshot) => { // Menggunakan window.onSnapshot dan window.doc
         if (docSnapshot.exists()) {
             const appStateData = docSnapshot.data();
-            dailyRevenue = appStateData.dailyRevenue || 0;
-            lastRecordedDate = appStateData.lastRecordedDate || '';
+            // FIX: Hanya load user-specific settings dari appState
             isRevenueVisible = typeof appStateData.isRevenueVisible !== 'undefined' ? appStateData.isRevenueVisible : true;
             isDarkMode = typeof appStateData.isDarkMode !== 'undefined' ? appStateData.isDarkMode : false;
-            monthlyNetProfit = appStateData.monthlyNetProfit || 0;
-            monthlyExpenses = appStateData.monthlyExpenses || 0;
-            lastRecordedMonth = appStateData.lastRecordedMonth || '';
-            // Load printer ID from appState
+            // lastConnectedPrinterId juga user-specific
             const savedPrinterId = appStateData.lastConnectedPrinterId || null;
             if (savedPrinterId) {
-                // Simpan di local storage sementara atau langsung coba sambungkan
-                // Untuk kesederhanaan, biarkan loadSavedPrinter() mencoba dari local storage
-                // Jika ingin disimpan di Firestore, logic loadSavedPrinter harus disesuaikan
-                // Untuk saat ini, kita akan menyimpan ID printer di Firestore AppState
-                // dan menggunakannya untuk auto-reconnect.
-                // Jika printerDevice sudah ada, tidak perlu memuat ulang ID dari sini.
+                // Logic untuk reconnect printer, tidak diubah.
             }
-
-            console.log("App state dimuat dari Firestore:", appStateData);
-            checkAndResetDailyRevenue();
-            updateHeaderDailyRevenue();
-            renderMonthlyFinancialBar();
-            applyDarkMode(); // Ini juga sekarang dijamin sudah terdefinisi
+            console.log("User-specific app state dimuat dari Firestore:", appStateData);
+            // FIX: applyDarkMode perlu dipanggil ulang kalau isDarkMode berubah
+            applyDarkMode();
+            updateHeaderDailyRevenue(); // Update display karena isRevenueVisible bisa berubah
         } else {
-            console.log("Dokumen appState tidak ditemukan, membuat default.");
+            console.log("Dokumen appState pribadi tidak ditemukan, membuat default.");
             // Buat dokumen appState default jika tidak ada
             window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { // Menggunakan window.setDoc dan window.doc
-                dailyRevenue: 0,
-                lastRecordedDate: new Date().toISOString().slice(0, 10),
                 isRevenueVisible: true,
                 isDarkMode: false,
-                monthlyNetProfit: 0,
-                monthlyExpenses: 0,
-                lastRecordedMonth: new Date().toISOString().slice(0, 7),
                 lastConnectedPrinterId: null
             });
         }
     }, (error) => {
-        console.error("Error fetching app state:", error);
-        displayStatus("Error memuat pengaturan aplikasi dari Firestore.", "error");
+        console.error("Error fetching user app state:", error);
+        displayStatus("Error memuat pengaturan aplikasi pribadi dari Firestore.", "error");
     });
+
 
     // Listener untuk User Roles (hanya untuk pengguna saat ini)
     unsubscribeUserRoles = window.onSnapshot(window.doc(db, USER_ROLES_COLLECTION_PATH, currentUserId), (docSnapshot) => { // Menggunakan window.onSnapshot dan window.doc
@@ -592,14 +618,18 @@ function setupFirestoreListeners() {
  */
 function cleanupFirestoreListeners() {
     if (unsubscribeProducts) unsubscribeProducts();
-    if (unsubscribeTransactions) unsubscribeTransactions();
-    if (unsubscribeExpenses) unsubscribeExpenses();
+    // FIX: Bersihkan listener publik yang baru
+    if (unsubscribePublicTransactions) unsubscribePublicTransactions();
+    if (unsubscribePublicExpenses) unsubscribePublicExpenses();
+    if (unsubscribeStoreMetrics) unsubscribeStoreMetrics();
+
     if (unsubscribeAppState) unsubscribeAppState();
     if (unsubscribeUserRoles) unsubscribeUserRoles();
 
     unsubscribeProducts = null;
-    unsubscribeTransactions = null;
-    unsubscribeExpenses = null;
+    unsubscribePublicTransactions = null;
+    unsubscribePublicExpenses = null;
+    unsubscribeStoreMetrics = null;
     unsubscribeAppState = null;
     unsubscribeUserRoles = null;
 }
@@ -615,10 +645,6 @@ async function saveProductsToFirestore() {
         console.warn("Tidak dapat menyimpan produk: DB atau UID tidak tersedia.");
         return;
     }
-    // Karena products disimpan di koleksi 'public', kita perlu menghapus semua dokumen yang ada
-    // dan menambahkannya kembali, atau mengelola penambahan/penghapusan satu per satu.
-    // Metode update/setDoc lebih disukai daripada menghapus semua dan menambah kembali
-    // agar update real-time lebih efisien.
     try {
         // Ambil dokumen produk yang sudah ada di Firestore
         const existingDocs = await window.getDocs(window.collection(db, PUBLIC_PRODUCTS_COLLECTION_PATH)); // Menggunakan window.getDocs dan window.collection
@@ -651,13 +677,14 @@ async function saveProductsToFirestore() {
  * @param {object} transactionRecord - Objek transaksi yang akan disimpan.
  */
 async function saveTransactionToFirestore(transactionRecord) {
-    if (!db || !currentUserId) {
+    if (!db || !currentUserId) { // currentUserId tetap diperlukan untuk loggedInUser.email/uid
         console.warn("Tidak dapat menyimpan transaksi: DB atau UID tidak tersedia.");
         return false;
     }
     try {
-        await window.setDoc(window.doc(db, USER_TRANSACTIONS_COLLECTION_PATH(currentUserId), transactionRecord.id), transactionRecord); // Menggunakan window.setDoc dan window.doc
-        console.log("Transaksi berhasil disimpan ke Firestore:", transactionRecord.id);
+        // FIX: Simpan ke koleksi transaksi publik
+        await window.setDoc(window.doc(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH, transactionRecord.id), transactionRecord);
+        console.log("Transaksi berhasil disimpan ke Firestore (publik):", transactionRecord.id);
         return true;
     } catch (e) {
         console.error("Gagal menyimpan transaksi ke Firestore:", e);
@@ -671,13 +698,14 @@ async function saveTransactionToFirestore(transactionRecord) {
  * Dipanggil saat ada pengeluaran baru atau perubahan.
  */
 async function saveExpenseToFirestore(expenseRecord) {
-    if (!db || !currentUserId) {
+    if (!db || !currentUserId) { // currentUserId tetap diperlukan untuk otentikasi
         console.warn("Tidak dapat menyimpan pengeluaran: DB atau UID tidak tersedia.");
         return false;
     }
     try {
-        await window.setDoc(window.doc(db, USER_EXPENSES_COLLECTION_PATH(currentUserId), expenseRecord.id), expenseRecord); // Menggunakan window.setDoc dan window.doc
-        console.log("Pengeluaran berhasil disimpan ke Firestore:", expenseRecord.id);
+        // FIX: Simpan ke koleksi pengeluaran publik
+        await window.setDoc(window.doc(db, PUBLIC_EXPENSES_COLLECTION_PATH, expenseRecord.id), expenseRecord);
+        console.log("Pengeluaran berhasil disimpan ke Firestore (publik):", expenseRecord.id);
         return true;
     } catch (e) {
         console.error("Gagal menyimpan pengeluaran ke Firestore:", e);
@@ -687,29 +715,49 @@ async function saveExpenseToFirestore(expenseRecord) {
 }
 
 /**
- * Menyimpan state aplikasi ke Firestore (pendapatan harian, mode gelap, dll.).
+ * Menyimpan state aplikasi user-specific ke Firestore (mode gelap, printer id).
  */
 async function saveAppStateToFirestore() {
     if (!db || !currentUserId) {
-        console.warn("Tidak dapat menyimpan app state: DB atau UID tidak tersedia.");
+        console.warn("Tidak dapat menyimpan app state pribadi: DB atau UID tidak tersedia.");
         return;
     }
     try {
         const appStateData = {
-            dailyRevenue: dailyRevenue,
-            lastRecordedDate: lastRecordedDate,
             isRevenueVisible: isRevenueVisible,
             isDarkMode: isDarkMode,
-            monthlyNetProfit: monthlyNetProfit,
-            monthlyExpenses: monthlyExpenses,
-            lastRecordedMonth: lastRecordedMonth,
             lastConnectedPrinterId: bluetoothPrinterDevice ? bluetoothPrinterDevice.id : null // Simpan ID printer
         };
         await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), appStateData, { merge: true }); // Menggunakan window.setDoc dan window.doc
-        console.log("App state berhasil disimpan ke Firestore.");
+        console.log("App state pribadi berhasil disimpan ke Firestore.");
     } catch (e) {
-        console.error("Gagal menyimpan app state ke Firestore:", e);
-        displayStatus("Error: Gagal menyimpan pengaturan aplikasi. Periksa koneksi internet atau hak akses.", "error");
+        console.error("Gagal menyimpan app state pribadi ke Firestore:", e);
+        displayStatus("Error: Gagal menyimpan pengaturan aplikasi pribadi. Periksa koneksi internet atau hak akses.", "error");
+    }
+}
+
+/**
+ * FIX: Fungsi baru untuk menyimpan metrik toko global ke Firestore.
+ */
+async function saveStoreMetricsToFirestore() {
+    if (!db) {
+        console.warn("Tidak dapat menyimpan metrik toko: DB tidak tersedia.");
+        return;
+    }
+    try {
+        const storeMetricsData = {
+            dailyRevenue: dailyRevenue,
+            lastRecordedDate: lastRecordedDate,
+            monthlyNetProfit: monthlyNetProfit,
+            monthlyExpenses: monthlyExpenses,
+            lastRecordedMonth: lastRecordedMonth
+        };
+        // Menggunakan merge: true agar tidak menimpa field lain jika ada
+        await window.setDoc(window.doc(db, STORE_METRICS_DOC_PATH), storeMetricsData, { merge: true });
+        console.log("Store metrics berhasil disimpan ke Firestore.");
+    } catch (e) {
+        console.error("Gagal menyimpan store metrics ke Firestore:", e);
+        displayStatus("Error: Gagal menyimpan metrik toko. Periksa koneksi internet.", "error");
     }
 }
 
@@ -739,7 +787,8 @@ async function checkAndResetDailyRevenue() {
         console.log(`Date changed from ${lastRecordedDate} to ${today}. Resetting daily revenue.`);
         dailyRevenue = 0;
         lastRecordedDate = today;
-        await saveAppStateToFirestore(); // Save the reset revenue and new date
+        // FIX: Simpan ke store metrics global
+        await saveStoreMetricsToFirestore();
         displayStatus("Pendapatan harian direset untuk hari baru.", "info");
     }
     updateHeaderDailyRevenue(); // Always update header with current daily revenue
@@ -749,7 +798,8 @@ async function checkAndResetDailyRevenue() {
         monthlyNetProfit = 0;
         monthlyExpenses = 0;
         lastRecordedMonth = thisMonth;
-        await saveAppStateToFirestore(); // Save the reset monthly data and new month
+        // FIX: Simpan ke store metrics global
+        await saveStoreMetricsToFirestore();
     }
     renderMonthlyFinancialBar(); // Always update the monthly bar
 }
@@ -1016,8 +1066,8 @@ function startNewTransaction() {
     displayStatus("", ""); // Clear status
     updateHeaderDateTime();
     updateCashierDisplay();
-    updateHeaderDailyRevenue();
-    renderMonthlyFinancialBar();
+    updateHeaderDailyRevenue(); // Ambil dari data global
+    renderMonthlyFinancialBar(); // Ambil dari data global
 
     if (productCodeInput) productCodeInput.value = '';
     if (productNameInput) productNameInput.value = '';
@@ -1170,11 +1220,12 @@ async function commitTransactionData(transactionRecord) {
     const success = await saveTransactionToFirestore(transactionRecord);
     if (!success) return; // Jika gagal disimpan ke Firestore, jangan lanjutkan
 
+    // FIX: Update dailyRevenue dan monthlyNetProfit di store metrics global
     dailyRevenue += transactionRecord.totalAmount;
     monthlyNetProfit += transactionRecord.transactionNetProfit;
 
-    // Simpan perubahan daily dan monthly revenue ke Firestore appState
-    await saveAppStateToFirestore();
+    // Simpan perubahan daily dan monthly revenue ke Firestore storeMetrics (global)
+    await saveStoreMetricsToFirestore();
 
     updateHeaderDailyRevenue();
     renderMonthlyFinancialBar();
@@ -1538,14 +1589,15 @@ async function addExpense() {
         return;
     }
 
-    const newExpense = { id: 'EXP-' + Date.now(), date: date, description: description, amount: amount };
+    const newExpense = { id: 'EXP-' + Date.now(), date: date, description: description, amount: amount, cashierEmail: loggedInUser ? loggedInUser.email : 'Unknown', cashierUid: currentUserId };
 
     try {
-        await window.setDoc(window.doc(db, USER_EXPENSES_COLLECTION_PATH(currentUserId), newExpense.id), newExpense); // Menggunakan window.setDoc dan window.doc
+        // FIX: Simpan ke koleksi pengeluaran publik
+        await window.setDoc(window.doc(db, PUBLIC_EXPENSES_COLLECTION_PATH, newExpense.id), newExpense);
         displayStatus("Pengeluaran berhasil ditambahkan!", "success", expenseStatusMessage);
-        // Update monthly expenses dan simpan ke Firestore appState
+        // FIX: Update monthly expenses di store metrics global
         monthlyExpenses += amount;
-        await saveAppStateToFirestore();
+        await saveStoreMetricsToFirestore();
         renderMonthlyFinancialBar();
         // Clear form
         expenseDateInput.value = new Date().toISOString().slice(0, 10);
@@ -1572,7 +1624,8 @@ function renderExpenses() {
     // Apply search filter
     if (searchTerm) {
         filteredExpenses = filteredExpenses.filter(expense =>
-            expense.description.toLowerCase().includes(searchTerm)
+            expense.description.toLowerCase().includes(searchTerm) ||
+            (expense.cashierEmail && expense.cashierEmail.toLowerCase().includes(searchTerm))
         );
     }
 
@@ -1623,6 +1676,7 @@ function renderExpenses() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${textClass} ${borderColor}">${expenseDate}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${textClass} ${borderColor}">${expense.description}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${textClass} text-right ${borderColor}">Rp ${expense.amount.toLocaleString('id-ID')}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${textClass} ${borderColor}">${expense.cashierEmail || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium ${borderColor}">
                     <button class="delete-expense-btn text-red-600 hover:text-red-900" data-expense-id="${expense.id}" title="Hapus Pengeluaran">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1644,12 +1698,19 @@ async function deleteExpense(expenseId) {
         displayStatus("Error: Tidak dapat menghapus pengeluaran, pengguna belum login.", "error", expenseStatusMessage);
         return;
     }
+    // Hanya admin yang bisa menghapus pengeluaran
+    if (loggedInUser && loggedInUser.role !== 'admin') {
+        displayStatus("Akses Ditolak: Hanya admin yang dapat menghapus pengeluaran.", "error");
+        return;
+    }
+
 
     const confirmed = await confirmAction("Apakah Anda yakin ingin menghapus pengeluaran ini?");
     if (confirmed) {
         try {
             const deletedExpense = expenses.find(e => e.id === expenseId);
-            await window.deleteDoc(window.doc(db, USER_EXPENSES_COLLECTION_PATH(currentUserId), expenseId)); // Menggunakan window.deleteDoc dan window.doc
+            // FIX: Hapus dari koleksi pengeluaran publik
+            await window.deleteDoc(window.doc(db, PUBLIC_EXPENSES_COLLECTION_PATH, expenseId));
             displayStatus("Pengeluaran berhasil dihapus!", "success", expenseStatusMessage);
 
             // Perbarui monthly expenses jika pengeluaran yang dihapus berasal dari bulan ini
@@ -1658,7 +1719,8 @@ async function deleteExpense(expenseId) {
             if (expenseMonth === thisMonth) {
                 monthlyExpenses -= deletedExpense.amount;
                 if (monthlyExpenses < 0) monthlyExpenses = 0;
-                await saveAppStateToFirestore();
+                // FIX: Simpan ke store metrics global
+                await saveStoreMetricsToFirestore();
                 renderMonthlyFinancialBar();
             }
         } catch (e) {
@@ -1684,6 +1746,7 @@ function closeExpensesModal() {
 function calculateFinancialReport() {
     const startDateStr = reportStartDateInput.value;
     const endDateStr = reportEndDateInput.value;
+    // FIX: Filter dari data transaksi dan pengeluaran publik
     let filteredTransactions = transactionHistory;
     let filteredExpenses = expenses;
 
@@ -1720,7 +1783,7 @@ function calculateFinancialReport() {
             const transactionDate = new Date(transaction.date);
             return transactionDate <= endDate;
         });
-        filteredExpenses = expenses.filter(expense => {
+        filteredExpenses = filteredExpenses.filter(expense => {
             const expenseDate = new Date(expense.date);
             return expenseDate <= endDate;
         });
@@ -1908,17 +1971,23 @@ function exportAllData() {
     // Data produk publik
     const publicProducts = products;
 
-    // Data pribadi pengguna yang sedang login (transaksi, pengeluaran, appState)
-    const currentUserTransactions = transactionHistory;
-    const currentUserExpenses = expenses;
-    const currentUserAppState = {
+    // FIX: Ambil data transaksi dan pengeluaran dari koleksi publik
+    const allTransactions = transactionHistory;
+    const allExpenses = expenses;
+
+    // FIX: Ambil data store metrics global
+    const storeMetrics = {
         dailyRevenue: dailyRevenue,
         lastRecordedDate: lastRecordedDate,
-        isRevenueVisible: isRevenueVisible,
-        isDarkMode: isDarkMode,
         monthlyNetProfit: monthlyNetProfit,
         monthlyExpenses: monthlyExpenses,
         lastRecordedMonth: lastRecordedMonth,
+    };
+
+    // Data pribadi pengguna yang sedang login (appState)
+    const currentUserAppState = {
+        isRevenueVisible: isRevenueVisible,
+        isDarkMode: isDarkMode,
         lastConnectedPrinterId: bluetoothPrinterDevice ? bluetoothPrinterDevice.id : null
     };
 
@@ -1927,11 +1996,12 @@ function exportAllData() {
         exportedByUid: currentUserId, // Sertakan UID pengguna yang mengekspor
         exportDate: new Date().toISOString(),
         publicData: {
-            products: publicProducts
+            products: publicProducts,
+            transactions: allTransactions, // FIX: Menyertakan semua transaksi
+            expenses: allExpenses,       // FIX: Menyertakan semua pengeluaran
+            storeMetrics: storeMetrics   // FIX: Menyertakan metrik toko global
         },
         userData: {
-            transactions: currentUserTransactions,
-            expenses: currentUserExpenses,
             appState: currentUserAppState
         }
     };
@@ -1955,8 +2025,8 @@ async function importAllData(event) {
         displayStatus("Error: Anda harus login untuk mengimpor data.", "error");
         return;
     }
-    // Hanya admin yang bisa mengimpor data publik (produk)
-    // Pengguna biasa bisa mengimpor data pribadinya.
+    // Hanya admin yang bisa mengimpor data publik (produk, transaksi, pengeluaran, storeMetrics)
+    // Pengguna biasa bisa mengimpor data pribadinya (appState).
     const isAdmin = loggedInUser && loggedInUser.role === 'admin';
 
     const file = event.target.files[0];
@@ -1966,6 +2036,7 @@ async function importAllData(event) {
     reader.onload = async (e) => {
         try {
             const importedData = JSON.parse(e.target.result);
+            // FIX: Periksa struktur data impor yang baru
             if (!importedData.publicData || !importedData.userData) {
                 displayStatus("Error: Format file data aplikasi tidak valid. Pastikan berisi 'publicData' dan 'userData'.", "error");
                 return;
@@ -1989,32 +2060,64 @@ async function importAllData(event) {
                     displayStatus("Anda bukan Admin. Data produk publik tidak diimpor.", "warning");
                 }
 
-
-                // Import data transaksi pribadi
-                if (importedData.userData.transactions) {
-                    const existingTransactionDocs = await window.getDocs(window.collection(db, USER_TRANSACTIONS_COLLECTION_PATH(currentUserId))); // Menggunakan window.getDocs dan window.collection
+                // FIX: Import data transaksi publik (hanya jika admin)
+                if (isAdmin && importedData.publicData.transactions) {
+                    const existingTransactionDocs = await window.getDocs(window.collection(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH));
                     for (const docSnapshot of existingTransactionDocs.docs) {
-                        await window.deleteDoc(docSnapshot.ref); // Menggunakan window.deleteDoc
+                        await window.deleteDoc(docSnapshot.ref);
+                    }
+                    for (const transaction of importedData.publicData.transactions) {
+                        await window.setDoc(window.doc(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH, transaction.id), transaction);
+                    }
+                    console.log("Transaksi publik berhasil diimpor.");
+                } else if (!isAdmin && importedData.userData.transactions) {
+                    // Jika bukan admin, hanya impor transaksi pribadi jika ada di file lama
+                    // Ini untuk kompatibilitas mundur jika user mengimpor file lama (sebelum transaksi publik)
+                    const existingTransactionDocs = await window.getDocs(window.collection(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH)); // Now it's public
+                    for (const docSnapshot of existingTransactionDocs.docs) {
+                        await window.deleteDoc(docSnapshot.ref);
                     }
                     for (const transaction of importedData.userData.transactions) {
-                        await window.setDoc(window.doc(db, USER_TRANSACTIONS_COLLECTION_PATH(currentUserId), transaction.id), transaction); // Menggunakan window.setDoc dan window.doc
+                         // Still save to public, but ensure it's from user's old private data if exists
+                        await window.setDoc(window.doc(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH, transaction.id), transaction);
                     }
-                    console.log("Transaksi pribadi berhasil diimpor.");
+                     console.log("Transaksi pribadi (dari format lama) berhasil diimpor ke koleksi publik.");
                 }
 
-                // Import data pengeluaran pribadi
-                if (importedData.userData.expenses) {
-                    const existingExpenseDocs = await window.getDocs(window.collection(db, USER_EXPENSES_COLLECTION_PATH(currentUserId))); // Menggunakan window.getDocs dan window.collection
+
+                // FIX: Import data pengeluaran publik (hanya jika admin)
+                if (isAdmin && importedData.publicData.expenses) {
+                    const existingExpenseDocs = await window.getDocs(window.collection(db, PUBLIC_EXPENSES_COLLECTION_PATH));
                     for (const docSnapshot of existingExpenseDocs.docs) {
-                        await window.deleteDoc(docSnapshot.ref); // Menggunakan window.deleteDoc
+                        await window.deleteDoc(docSnapshot.ref);
+                    }
+                    for (const expense of importedData.publicData.expenses) {
+                        await window.setDoc(window.doc(db, PUBLIC_EXPENSES_COLLECTION_PATH, expense.id), expense);
+                    }
+                    console.log("Pengeluaran publik berhasil diimpor.");
+                } else if (!isAdmin && importedData.userData.expenses) {
+                     // Jika bukan admin, hanya impor pengeluaran pribadi jika ada di file lama
+                     const existingExpenseDocs = await window.getDocs(window.collection(db, PUBLIC_EXPENSES_COLLECTION_PATH)); // Now it's public
+                    for (const docSnapshot of existingExpenseDocs.docs) {
+                        await window.deleteDoc(docSnapshot.ref);
                     }
                     for (const expense of importedData.userData.expenses) {
-                        await window.setDoc(window.doc(db, USER_EXPENSES_COLLECTION_PATH(currentUserId), expense.id), expense); // Menggunakan window.setDoc dan window.doc
+                        await window.setDoc(window.doc(db, PUBLIC_EXPENSES_COLLECTION_PATH, expense.id), expense);
                     }
-                    console.log("Pengeluaran pribadi berhasil diimpor.");
+                    console.log("Pengeluaran pribadi (dari format lama) berhasil diimpor ke koleksi publik.");
                 }
 
-                // Import app state pribadi
+
+                // FIX: Import store metrics (hanya jika admin)
+                if (isAdmin && importedData.publicData.storeMetrics) {
+                    await window.setDoc(window.doc(db, STORE_METRICS_DOC_PATH), importedData.publicData.storeMetrics, { merge: true });
+                    console.log("Store metrics berhasil diimpor.");
+                } else if (!isAdmin) {
+                    displayStatus("Anda bukan Admin. Data metrik toko tidak diimpor.", "warning");
+                }
+
+
+                // Import app state pribadi (tetap berlaku untuk semua user)
                 if (importedData.userData.appState) {
                     await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), importedData.userData.appState, { merge: true }); // Menggunakan window.setDoc dan window.doc
                     console.log("App state pribadi berhasil diimpor.");
@@ -2045,19 +2148,27 @@ async function performResetAllData() {
     const isAdmin = loggedInUser && loggedInUser.role === 'admin';
 
     try {
-        // Reset data pribadi pengguna yang sedang login
-        displayStatus("Mereset data pribadi...", "info", resetDataMessage);
-        const transactionsRef = window.collection(db, USER_TRANSACTIONS_COLLECTION_PATH(currentUserId)); // Menggunakan window.collection
-        const expensesRef = window.collection(db, USER_EXPENSES_COLLECTION_PATH(currentUserId)); // Menggunakan window.collection
-        const appStateRef = window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)); // Menggunakan window.doc
+        // FIX: Reset data transaksi publik
+        displayStatus("Mereset data transaksi publik...", "info", resetDataMessage);
+        const publicTransactionsRef = window.collection(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH);
+        const publicTransactionDocs = await window.getDocs(publicTransactionsRef);
+        for (const d of publicTransactionDocs.docs) { await window.deleteDoc(d.ref); }
 
-        const transactionDocs = await window.getDocs(transactionsRef); // Menggunakan window.getDocs
-        for (const d of transactionDocs.docs) { await window.deleteDoc(d.ref); } // Menggunakan window.deleteDoc
+        // FIX: Reset data pengeluaran publik
+        displayStatus("Mereset data pengeluaran publik...", "info", resetDataMessage);
+        const publicExpensesRef = window.collection(db, PUBLIC_EXPENSES_COLLECTION_PATH);
+        const publicExpenseDocs = await window.getDocs(publicExpensesRef);
+        for (const d of publicExpenseDocs.docs) { await window.deleteDoc(d.ref); }
 
-        const expenseDocs = await window.getDocs(expensesRef); // Menggunakan window.getDocs
-        for (const d of expenseDocs.docs) { await window.deleteDoc(d.ref); } // Menggunakan window.deleteDoc
+        // FIX: Reset store metrics global
+        displayStatus("Mereset metrik toko global...", "info", resetDataMessage);
+        const storeMetricsRef = window.doc(db, STORE_METRICS_DOC_PATH);
+        await window.deleteDoc(storeMetricsRef); // Hapus dokumen store metrics global
 
-        await window.deleteDoc(appStateRef); // Hapus dokumen app state // Menggunakan window.deleteDoc
+        // Reset appState pribadi (tetap sama)
+        displayStatus("Mereset app state pribadi...", "info", resetDataMessage);
+        const appStateRef = window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId));
+        await window.deleteDoc(appStateRef);
 
         // Reset data publik (produk) hanya jika admin
         if (isAdmin) {
@@ -2071,28 +2182,32 @@ async function performResetAllData() {
             displayStatus("Anda bukan Admin. Data produk publik tidak direset.", "warning", resetDataMessage);
         }
 
-        // Opsional: Buat kembali appState default setelah reset
-        await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { // Menggunakan window.setDoc dan window.doc
+        // Opsional: Buat kembali storeMetrics default setelah reset
+        await window.setDoc(window.doc(db, STORE_METRICS_DOC_PATH), {
             dailyRevenue: 0,
             lastRecordedDate: new Date().toISOString().slice(0, 10),
-            isRevenueVisible: true,
-            isDarkMode: false,
             monthlyNetProfit: 0,
             monthlyExpenses: 0,
-            lastRecordedMonth: new Date().toISOString().slice(0, 7),
+            lastRecordedMonth: new Date().toISOString().slice(0, 7)
+        });
+
+        // Opsional: Buat kembali appState default setelah reset
+        await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { // Menggunakan window.setDoc dan window.doc
+            isRevenueVisible: true,
+            isDarkMode: false,
             lastConnectedPrinterId: null
         });
 
 
         // Membersihkan variabel lokal dan UI setelah reset
         currentTransactionItems = [];
-        dailyRevenue = 0;
-        lastRecordedDate = '';
+        dailyRevenue = 0; // Reset variabel lokal
+        lastRecordedDate = ''; // Reset variabel lokal
         isRevenueVisible = true;
         isDarkMode = false;
-        monthlyNetProfit = 0;
-        monthlyExpenses = 0;
-        lastRecordedMonth = '';
+        monthlyNetProfit = 0; // Reset variabel lokal
+        monthlyExpenses = 0; // Reset variabel lokal
+        lastRecordedMonth = ''; // Reset variabel lokal
         bluetoothPrinterDevice = null;
         printerCharacteristic = null;
 
@@ -2289,6 +2404,11 @@ async function deleteTransaction(transactionId) {
         displayStatus("Error: Tidak dapat menghapus transaksi, pengguna belum login.", "error");
         return;
     }
+    // Hanya admin yang bisa menghapus transaksi
+    if (loggedInUser && loggedInUser.role !== 'admin') {
+        displayStatus("Akses Ditolak: Hanya admin yang dapat menghapus transaksi.", "error");
+        return;
+    }
 
     const confirmed = await confirmAction("Apakah Anda yakin ingin menghapus transaksi ini? Stok produk terdaftar akan dikembalikan.");
     if (!confirmed) return;
@@ -2311,11 +2431,11 @@ async function deleteTransaction(transactionId) {
             }
         }
 
-        // Hapus dokumen transaksi dari Firestore
-        await window.deleteDoc(window.doc(db, USER_TRANSACTIONS_COLLECTION_PATH(currentUserId), transactionId)); // Menggunakan window.deleteDoc dan window.doc
+        // FIX: Hapus dokumen transaksi dari koleksi publik
+        await window.deleteDoc(window.doc(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH, transactionId));
         displayStatus("Transaksi berhasil dihapus dan stok dikembalikan!", "success");
 
-        // Perbarui daily dan monthly revenue di Firestore appState
+        // Perbarui daily dan monthly revenue di store metrics global
         const today = new Date().toISOString().slice(0, 10);
         const transactionDate = new Date(transactionToDelete.date).toISOString().slice(0, 10);
         if (transactionDate === today) {
@@ -2328,7 +2448,7 @@ async function deleteTransaction(transactionId) {
         if (transactionMonth === thisMonth && transactionToDelete.transactionNetProfit !== undefined) {
             monthlyNetProfit -= transactionToDelete.transactionNetProfit;
         }
-        await saveAppStateToFirestore();
+        await saveStoreMetricsToFirestore(); // Simpan perubahan ke store metrics global
         // onSnapshot akan memicu pembaruan array `transactionHistory` lokal dan render ulang UI
     } catch (e) {
         console.error("Gagal menghapus transaksi dari Firestore:", e);
@@ -2632,7 +2752,8 @@ function updatePrinterConnectionStatus(message, isConnected = false) {
 async function savePrinterAddress(deviceId) {
     if (!currentUserId) return;
     try {
-        await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { lastConnectedPrinterId: deviceId }, { merge: true }); // Menggunakan window.setDoc dan window.doc
+        // FIX: Hanya update lastConnectedPrinterId di appState pribadi user
+        await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { lastConnectedPrinterId: deviceId }, { merge: true });
         console.log("Printer ID saved to Firestore AppState:", deviceId);
     } catch (e) {
         console.error("Gagal menyimpan ID printer ke Firestore:", e);
@@ -2643,72 +2764,12 @@ async function savePrinterAddress(deviceId) {
 async function clearSavedPrinter() {
     if (!currentUserId) return;
     try {
-        await window.updateDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { lastConnectedPrinterId: null }); // Menggunakan window.updateDoc dan window.doc
+        // FIX: Hanya update lastConnectedPrinterId di appState pribadi user
+        await window.updateDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { lastConnectedPrinterId: null });
         console.log("Printer ID dihapus dari Firestore AppState.");
     } catch (e) {
         console.error("Gagal menghapus ID printer dari Firestore:", e);
     }
-}
-
-// Attempts to connect to a Bluetooth printer.
-async function connectPrinter() {
-    try {
-        updatePrinterConnectionStatus("Mencari printer...", false);
-        bluetoothPrinterDevice = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
-        });
-
-        if (!bluetoothPrinterDevice) {
-            updatePrinterConnectionStatus("Pencarian printer dibatalkan.");
-            return;
-        }
-
-        updatePrinterConnectionStatus("Menghubungkan ke printer...", false);
-        const server = await bluetoothPrinterDevice.gatt.connect();
-
-        bluetoothPrinterDevice.addEventListener('gattserverdisconnected', onPrinterDisconnected);
-
-        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-        printerCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-
-        updatePrinterConnectionStatus(`Printer terhubung: ${bluetoothPrinterDevice.name || bluetoothPrinterDevice.id}`, true);
-        await savePrinterAddress(bluetoothPrinterDevice.id); // Simpan ID device ke Firestore AppState
-
-    } catch (error) {
-        console.error("Koneksi printer error:", error);
-        updatePrinterConnectionStatus(`Error: ${error.message}`);
-        bluetoothPrinterDevice = null;
-        printerCharacteristic = null;
-        await clearSavedPrinter();
-    }
-}
-
-// Disconnects from the Bluetooth printer.
-async function disconnectPrinter() {
-    if (bluetoothPrinterDevice && bluetoothPrinterDevice.gatt.connected) {
-        try {
-            bluetoothPrinterDevice.gatt.disconnect();
-        } catch (error) {
-            console.error("Gagal memutuskan printer:", error);
-            updatePrinterConnectionStatus(`Gagal memutuskan: ${error.message}`);
-        }
-    } else {
-        updatePrinterConnectionStatus("Printer tidak terhubung.");
-    }
-    bluetoothPrinterDevice = null;
-    printerCharacteristic = null;
-    await clearSavedPrinter();
-}
-
-// Handler for printer disconnection event.
-async function onPrinterDisconnected(event) {
-    const device = event.target;
-    console.log(`Printer ${device.name || device.id} telah terputus.`);
-    updatePrinterConnectionStatus("Printer terputus.");
-    bluetoothPrinterDevice = null;
-    printerCharacteristic = null;
-    await clearSavedPrinter();
 }
 
 // Attempts to load and reconnect to a previously saved printer.
@@ -2720,7 +2781,7 @@ async function loadSavedPrinter() {
     }
 
     try {
-        // Ambil ID printer dari Firestore AppState
+        // Ambil ID printer dari Firestore AppState pribadi user
         const appStateDoc = await window.getDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId))); // Menggunakan window.getDoc dan window.doc
         const savedPrinterId = appStateDoc.exists() ? appStateDoc.data().lastConnectedPrinterId : null;
 
@@ -3511,7 +3572,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // --- Expenses Modal Event Listeners ---
     if (openExpensesModalBtn) {
         openExpensesModalBtn.addEventListener('click', () => {
-             if (loggedInUser && loggedInUser.role === 'admin') {
+             // Admin bisa melihat semua pengeluaran, kasir juga bisa melihat pengeluaran, tapi hanya admin yang bisa hapus
+            if (loggedInUser) { // Semua user bisa melihat pengeluaran
                 expensesModal.classList.remove('hidden');
                 adminMenuDropdown.classList.add('hidden');
                 expenseDateInput.value = new Date().toISOString().slice(0, 10);
@@ -3520,7 +3582,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 expenseFilterEndDate.value = '';
                 renderExpenses();
             } else {
-                displayStatus("Akses Ditolak: Anda harus login sebagai Admin untuk melihat Pengeluaran.", "error");
+                displayStatus("Akses Ditolak: Anda harus login untuk melihat Pengeluaran.", "error");
                 adminMenuDropdown.classList.add('hidden');
             }
         });
@@ -3535,7 +3597,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         expensesListBody.addEventListener('click', (e) => {
             if (e.target.closest('.delete-expense-btn')) {
                 const expenseId = e.target.closest('.delete-expense-btn').dataset.expenseId;
-                deleteExpense(expenseId);
+                deleteExpense(expenseId); // Periksa role di dalam deleteExpense
             }
         });
     }
@@ -3591,18 +3653,22 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // --- Transaction History Functions ---
     if (openTransactionHistoryBtn) {
         openTransactionHistoryBtn.addEventListener('click', () => {
-            transactionHistoryModal.classList.remove('hidden');
-            transactionDetailSection.classList.add('hidden');
-            if (transactionHistoryTableBody && transactionHistoryTableBody.parentElement) {
-                transactionHistoryTableBody.parentElement.classList.remove('hidden');
+            if (loggedInUser) { // Semua user bisa melihat history transaksi
+                transactionHistoryModal.classList.remove('hidden');
+                transactionDetailSection.classList.add('hidden');
+                if (transactionHistoryTableBody && transactionHistoryTableBody.parentElement) {
+                    transactionHistoryTableBody.parentElement.classList.remove('hidden');
+                }
+                if (historyFilterControls) {
+                    historyFilterControls.classList.remove('hidden');
+                }
+                totalTransactionsAmount.parentElement.classList.remove('hidden');
+                historyStartDateInput.value = '';
+                historyEndDateInput.value = '';
+                renderTransactionHistory();
+            } else {
+                displayStatus("Akses Ditolak: Anda harus login untuk melihat Riwayat Transaksi.", "error");
             }
-            if (historyFilterControls) {
-                historyFilterControls.classList.remove('hidden');
-            }
-            totalTransactionsAmount.parentElement.classList.remove('hidden');
-            historyStartDateInput.value = '';
-            historyEndDateInput.value = '';
-            renderTransactionHistory();
         });
     }
     if (closeTransactionHistoryModalBtn) {
@@ -3630,7 +3696,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 viewTransactionDetails(transactionId);
             } else if (e.target.closest('.delete-transaction-btn')) {
                 const transactionId = e.target.closest('.delete-transaction-btn').dataset.transactionId;
-                deleteTransaction(transactionId);
+                deleteTransaction(transactionId); // Periksa role di dalam deleteTransaction
             }
         });
     }
@@ -3716,7 +3782,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     if (toggleDailyRevenueVisibilityButton) {
         toggleDailyRevenueVisibilityButton.addEventListener('click', async () => { // Make async
             isRevenueVisible = !isRevenueVisible;
-            await saveAppStateToFirestore(); // Save state to Firestore
+            await saveAppStateToFirestore(); // Save user-specific state to Firestore
             updateHeaderDailyRevenue();
         });
     }
@@ -3754,7 +3820,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     if (darkModeToggle) {
         darkModeToggle.addEventListener('click', async () => { // Make async
             isDarkMode = !isDarkMode;
-            await saveAppStateToFirestore(); // Save state to Firestore
+            await saveAppStateToFirestore(); // Save user-specific state to Firestore
             applyDarkMode();
             renderTransactionItems();
             renderStoreProducts(searchStoreProductsInput.value);
@@ -3904,23 +3970,29 @@ window.addEventListener('beforeunload', async () => {
         html5QrCodeScanner.stop().catch(err => console.warn("Error stopping scanner on unload:", err));
     }
 
-    // Save app state one last time, terutama untuk lastConnectedPrinterId jika ada
+    // Save app state user-specific one last time, terutama untuk lastConnectedPrinterId jika ada
     if (currentUserId && db) {
         try {
             const appStateData = {
-                dailyRevenue: dailyRevenue,
-                lastRecordedDate: lastRecordedDate,
                 isRevenueVisible: isRevenueVisible,
                 isDarkMode: isDarkMode,
-                monthlyNetProfit: monthlyNetProfit,
-                monthlyExpenses: monthlyExpenses,
-                lastRecordedMonth: lastRecordedMonth,
                 lastConnectedPrinterId: bluetoothPrinterDevice ? bluetoothPrinterDevice.id : null
             };
             await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), appStateData, { merge: true }); // Menggunakan window.setDoc dan window.doc
-            console.log("App state berhasil disimpan saat unload.");
+            console.log("App state pribadi berhasil disimpan saat unload.");
         } catch (e) {
-            console.error("Gagal menyimpan app state saat unload:", e);
+            console.error("Gagal menyimpan app state pribadi saat unload:", e);
+        }
+    }
+
+    // Save global store metrics one last time (dilakukan di commitTransactionData, tapi ini jaga-jaga)
+    // FIX: Tambahkan saveStoreMetricsToFirestore di sini juga jika ada perubahan yang belum disimpan
+    if (db) {
+        try {
+            await saveStoreMetricsToFirestore();
+            console.log("Store metrics berhasil disimpan saat unload.");
+        } catch (e) {
+            console.error("Gagal menyimpan store metrics saat unload:", e);
         }
     }
 });
