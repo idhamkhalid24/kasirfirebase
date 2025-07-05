@@ -218,3 +218,36 @@ body.dark-mode {
     background-color: #4a5568; /* Darker background for code snippet */
     color: #e2e8f0; /* Lighter text for code snippet */
 }
+
+/* Styles for Online Shop Section (NEW) */
+#onlineShopSection {
+    /* Add any specific styles for the container if needed */
+}
+
+#onlineShopSection input[type="text"],
+#onlineShopSection input[type="number"],
+#onlineShopSection select {
+    /* Apply similar styles as other inputs for consistency */
+    @apply mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none;
+}
+
+#onlineShopSection input[type="text"]:focus,
+#onlineShopSection input[type="number"]:focus,
+#onlineShopSection select:focus {
+    /* Focus ring for online shop inputs */
+    @apply focus:ring-purple-500 focus:border-purple-500;
+}
+
+/* Dark mode specific styles for online shop inputs */
+.dark-mode #onlineShopSection input,
+.dark-mode #onlineShopSection select {
+    background-color: #4a5568; /* Darker background for input */
+    border-color: #4a5568; /* Darker border color */
+    color: #e2e8f0; /* Lighter text color */
+}
+
+/* Style for the "Lainnya" marketplace input */
+#other-marketplace-name-container {
+    /* This will be controlled by JS for display: none/block */
+}
+
