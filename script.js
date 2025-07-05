@@ -1,38 +1,36 @@
-// --- Firebase Variables (Akan diinisialisasi dari window.firebaseApp, dll.) ---
-let app;
-let auth;
-let db;
-let currentUserId = null; // UID pengguna yang sedang login dari Firebase Auth
-let userRole = null;    // Role pengguna (misal: 'admin', 'cashier')
-
-// --- Data Variables (Sekarang akan dimuat dari Firestore) ---
+// --- Data Variables ---
+// `products` will store product information. Initially, it might be empty or load from localStorage.
 let products = [];
+// `currentTransactionItems` stores items in the current cart.
 let currentTransactionItems = [];
-// FIX: transactionHistory dan expenses sekarang akan jadi global (bukan per user)
+// `transactionHistory` stores all completed transactions for financial reporting.
 let transactionHistory = [];
+// `expenses` stores all recorded expenses.
 let expenses = [];
-// Pengguna tidak lagi disimpan di sini secara lokal, melainkan di Firebase Auth dan Firestore
-// let users = [];
-let loggedInUser = null; // Objek pengguna yang sedang login dari Firebase Auth + role dari Firestore
+// `users` stores all registered users for login and management.
+let users = []; // New: Array to store users
+// `loggedInUser` stores the currently logged-in user object.
+let loggedInUser = null; // New: Stores the currently logged-in user
+// `currentTransactionMode` tracks if we are in 'registered' or 'custom' product input mode.
+let currentTransactionMode = 'registered';
 
-// FIX: dailyRevenue, lastRecordedDate, monthlyNetProfit, monthlyExpenses, lastRecordedMonth
-// sekarang akan diambil dari dokumen publik, bukan dari appState per user.
+// New variables for daily revenue tracking
 let dailyRevenue = 0;
 let lastRecordedDate = ''; // Format:YYYY-MM-DD
+let isRevenueVisible = true; // New: State for revenue visibility
+let isDarkMode = false; // New: State for dark mode
+
+// New variables for monthly financial tracking
 let monthlyNetProfit = 0;
 let monthlyExpenses = 0;
 let lastRecordedMonth = ''; // Format:YYYY-MM
 
-// Variabel user-specific yang tetap di appState pribadi
-let isRevenueVisible = true;
-let isDarkMode = false;
-
-// Bluetooth Printer variables (tetap lokal atau disimpan di Firestore appState)
-let bluetoothPrinterDevice = null;
-let printerCharacteristic = null;
+// Bluetooth Printer variables
+let bluetoothPrinterDevice = null; // Stores the connected BluetoothDevice object
+let printerCharacteristic = null; // Stores the BluetoothGATTCharacteristic for writing data
 
 // QR Scanner variables
-let html5QrCodeScanner = null;
+let html5QrCodeScanner = null; // Html5QrcodeScanner instance
 
 // --- DOM Elements (Declared here, assigned on DOMContentLoaded) ---
 // Main App Containers
@@ -40,7 +38,7 @@ let loginScreen;
 let mainAppContainer;
 
 // Login Screen Elements
-let loginScreenEmailInput; // Diubah ke email
+let loginScreenUsernameInput;
 let loginScreenPasswordInput;
 let loginScreenBtn;
 let loginScreenMessage;
@@ -49,23 +47,23 @@ let itemList;
 let totalAmountInput;
 let discountAmountInput;
 let paymentAmountInput;
-let paymentMethodSelect;
-let changeAmountHeader;
+let paymentMethodSelect; // NEW: Payment method dropdown
+let changeAmountHeader; // New span in header for change amount
 let statusElement;
 let newTransactionButton;
 let printReceiptButton;
 let processOnlyPaymentButton;
 let noItemsMessage;
 let headerDateTime;
-let headerDailyRevenue;
-let headerDailyRevenueAmountContainer;
-let toggleDailyRevenueVisibilityButton;
-let eyeIcon;
-let eyeSlashIcon;
+let headerDailyRevenue; // The span that displays the actual number
+let headerDailyRevenueAmountContainer; // The container for the revenue amount and its "Rp" prefix
+let toggleDailyRevenueVisibilityButton; // New: Button to toggle visibility
+let eyeIcon; // New: Eye icon for visible state
+let eyeSlashIcon; // New: Eye slash icon for hidden state
 let cashierDisplay;
 let cashierRole;
-let logoutButton;
-let darkModeToggle;
+let logoutButton; // New: Logout button in header
+let darkModeToggle; // New: Dark mode toggle button
 
 // Monthly Financial Bar elements
 let monthlyFinancialBarContainer;
@@ -79,8 +77,8 @@ let productNameInput;
 let priceInput;
 let quantityInput;
 let addRegisteredItemButton;
-let searchProductByCodeBtn;
-let productCodeDatalist;
+let searchProductByCodeBtn; // NEW: Search product by code button
+let productCodeDatalist; // NEW: Datalist element for product code suggestions
 
 // Custom product input elements
 let customProductCodeInput;
@@ -89,16 +87,27 @@ let customProductPriceInput;
 let customProductQtyInput;
 let addCustomItemButton;
 
+// NEW: Online Shop input elements
+let onlineShopSection; // Section container for online shop inputs
+let showOnlineShopProductsButton; // Button to show online shop section
+let marketplaceNameSelect; // Dropdown for marketplace name
+let otherMarketplaceNameContainer; // Container for 'Lainnya' input
+let otherMarketplaceNameInput; // Input for 'Lainnya' marketplace name
+let resiNumberInput; // Input for Nomor Resi
+let onlineShopPriceInput; // Input for Harga Jual
+let onlineShopQuantityInput; // Input for Jumlah
+let addToCartBtnOnlineShop; // Button to add to cart for online shop
+
 let showRegisteredProductsButton;
 let showCustomProductsButton;
-let showScannerProductsButton;
+let showScannerProductsButton; // NEW: Scanner button
 let customProductSection;
 let registeredProductSection;
-let scannerSection;
-let reader;
-let scannerResult;
-let startScannerBtn;
-let stopScannerBtn;
+let scannerSection; // NEW: Scanner section
+let reader; // NEW: Element for QR scanner camera feed
+let scannerResult; // NEW: Element to display scanner result
+let startScannerBtn; // NEW: Start scanner button
+let stopScannerBtn = null; // NEW: Stop scanner button
 
 // Admin menu elements
 let adminMenuButton;
@@ -107,8 +116,8 @@ let openStoreProductsModalBtn;
 let openAddProductModalBtn;
 let openFinancialReportModalBtn;
 let openExpensesModalBtn;
-let openUserSettingsModalBtn;
-let openPriceCalculatorModalBtn;
+let openUserSettingsModalBtn; // New: Open User Settings Modal Button
+let openPriceCalculatorModalBtn; // NEW: Open Price Calculator Modal Button
 let exportProductsBtn;
 let importProductsFileInput;
 let importProductsBtn;
@@ -159,6 +168,7 @@ let expenseFilterStartDate;
 let expenseFilterEndDate;
 let applyExpenseFilterBtn;
 let clearExpenseFilterBtn;
+let exportExpensesXLSBtn; // NEW: Get the export button
 let totalExpensesDisplayModal;
 
 
@@ -169,6 +179,7 @@ let reportStartDateInput;
 let reportEndDateInput;
 let applyFinancialFilterBtn;
 let clearFinancialFilterBtn;
+let exportFinancialReportXLSBtn;
 let totalRevenueDisplay;
 let totalExpensesDisplay;
 let grossProfitDisplay;
@@ -197,7 +208,7 @@ let detailPaymentAmount;
 let detailChangeAmount;
 let detailItemList;
 let closeTransactionDetailBtn;
-let reprintReceiptBtn;
+let reprintReceiptBtn; // New: Reprint receipt button in detail section
 let historyFilterControls;
 let totalTransactionsAmount;
 
@@ -206,18 +217,17 @@ let confirmationModal;
 let confirmationMessage;
 let confirmOkBtn;
 let confirmCancelBtn;
-let confirmPromiseResolve;
 
-// User Settings Modal
+// User Settings Modal (New)
 let userSettingsModal;
 let closeUserSettingsModalBtn;
 let userSettingsLoginSection;
-let userSettingsLoginEmailInput; // Diubah ke email
+let userSettingsLoginUsernameInput;
 let userSettingsLoginPasswordInput;
 let userSettingsLoginButton;
 let userSettingsLoginStatusMessage;
 let userManagementSection;
-let newUseEmailInput; // Diubah ke email
+let newUserNameInput;
 let newUserPasswordInput;
 let newUserRoleSelect;
 let addUserButton;
@@ -225,7 +235,7 @@ let addUserStatusMessage;
 let userListBody;
 let emptyUserMessage;
 
-// Printer Settings Modal
+// Printer Settings Modal (New)
 let openPrinterSettingsBtn;
 let printerSettingsModal;
 let closePrinterSettingsModalBtn;
@@ -234,7 +244,7 @@ let connectPrinterBtn;
 let disconnectPrinterBtn;
 let testPrintBtn;
 
-// Price Calculator Modal
+// Price Calculator Modal (NEW)
 let priceCalculatorModal;
 let closePriceCalculatorModalBtn;
 let priceCalcProductCodeInput;
@@ -250,119 +260,278 @@ let copySellingPriceBtn;
 let priceCalcProfitInput;
 let priceCalcStatusMessage;
 
-// Nominal Quick Pay Buttons
+// Nominal Quick Pay Buttons (NEW)
 let nominalButtonsContainer;
 let nominalButtons;
 
-// Audio elements for sounds
-let scanSuccessSound;
-let transactionSuccessSound;
+// New: Audio elements for sounds
+let scanSuccessSound; // Audio for successful scan
+let transactionSuccessSound; // Audio for successful transaction
 
-// Reset data modal elements
+
+// New: Reset data modal elements
 let resetDataModal;
 let resetPasswordInput;
 let resetDataConfirmBtn;
 let resetDataCancelBtn;
 let resetDataMessage;
 
-
-// --- Firestore Collection References (untuk dibaca di fungsi) ---
-// APP_ID akan disediakan oleh lingkungan Canvas
-const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-const PUBLIC_PRODUCTS_COLLECTION_PATH = `artifacts/${APP_ID}/products`; 
-const USER_APP_STATE_DOC_PATH = (uid) => `artifacts/${APP_ID}/users/${uid}/appState/settings`;
-const USER_ROLES_COLLECTION_PATH = `users`; // Top-level collection for user roles, indexed by UID
-
-// FIX: Menambahkan path baru untuk data keuangan toko global
-const STORE_METRICS_DOC_PATH = `artifacts/${APP_ID}/storeMetrics/global`;
-
-// FIX: Mengubah path transaksi dan pengeluaran menjadi publik
-const PUBLIC_TRANSACTIONS_COLLECTION_PATH = `artifacts/${APP_ID}/transactions`;
-const PUBLIC_EXPENSES_COLLECTION_PATH = `artifacts/${APP_ID}/expenses`;
+// NEW: Daily Report Print Modal Elements
+let openDailyReportPrintModalBtn;
+let dailyReportPrintModal;
+let closeDailyReportPrintModalBtn;
+let reportPrintDateInput;
+let dailyReportPrintStatusMessage;
+let printDailyReportBtn;
 
 
-// --- Hardcoded password for reset (sesuai permintaan pengguna) ---
+// --- Data Storage Keys ---
+const LOCAL_STORAGE_PRODUCTS_KEY = 'pos_products';
+const LOCAL_STORAGE_TRANSACTIONS_KEY = 'pos_transactions';
+const LOCAL_STORAGE_EXPENSES_KEY = 'pos_expenses';
+const LOCAL_STORAGE_USERS_KEY = 'pos_users'; // New: Key for users
+// Changed from LOCAL_STORAGE to SESSION_STORAGE for automatic logout on browser close
+const SESSION_STORAGE_LOGGED_IN_USER_KEY = 'pos_logged_in_user_session'; // New: Key for logged-in user in session storage
+const LOCAL_STORAGE_DAILY_REVENUE_KEY = 'pos_daily_revenue';
+const LOCAL_STORAGE_LAST_DATE_KEY = 'pos_last_recorded_date';
+const LOCAL_STORAGE_REVENUE_VISIBILITY_KEY = 'pos_revenue_visibility';
+const LOCAL_STORAGE_DARK_MODE_KEY = 'pos_dark_mode'; // New: Key for dark mode
+const LOCAL_STORAGE_MONTHLY_NET_PROFIT_KEY = 'pos_monthly_net_profit'; // New key
+const LOCAL_STORAGE_MONTHLY_EXPENSES_KEY = 'pos_monthly_expenses'; // New key
+const LOCAL_STORAGE_LAST_MONTH_KEY = 'pos_last_recorded_month'; // New key
+const LOCAL_STORAGE_PRINTER_ID_KEY = 'pos_bluetooth_printer_id'; // New: Key to store last connected printer ID
+
+// --- Hardcoded password for reset (as per user request) ---
 const RESET_PASSWORD = "alfajrihanif24@gmail.com";
 
 
-// --- Firebase Listener Unsubscribe Functions ---
-// Kita akan menyimpan fungsi unsubscribe di sini agar bisa membersihkan listener saat logout
-let unsubscribeProducts = null;
-// FIX: Mengubah unsubscribe untuk transaksi dan pengeluaran ke listener publik
-let unsubscribePublicTransactions = null;
-let unsubscribePublicExpenses = null;
-// FIX: Menambahkan unsubscribe untuk store metrics
-let unsubscribeStoreMetrics = null;
-let unsubscribeAppState = null; // Tetap untuk appState pribadi
-let unsubscribeUserRoles = null; // Listener untuk role pengguna saat ini
-
-// --- General Utility Functions (Penting: Pindahkan ke atas agar bisa dipanggil duluan) ---
-
-// Toggles dark mode on/off and applies corresponding Tailwind classes.
-function applyDarkMode() {
-    const body = document.body;
-    if (isDarkMode) {
-        body.classList.add('dark-mode');
-        body.classList.remove('bg-gray-100'); // Remove light background
-        body.classList.add('bg-gray-800'); // Add dark background
-        // Apply dark mode specific styles to modals, inputs, etc.
-        document.querySelectorAll('.modal-content, .bg-white').forEach(el => {
-            el.classList.add('dark:bg-gray-800', 'dark:text-gray-100');
-            el.classList.remove('bg-white', 'text-gray-800');
-        });
-        document.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]), select, textarea').forEach(el => {
-            el.classList.add('dark:bg-gray-700', 'dark:border-gray-600', 'dark:text-gray-200');
-            el.classList.remove('bg-white', 'border-gray-300', 'text-gray-900');
-        });
-        document.querySelectorAll('.text-gray-700').forEach(el => el.classList.add('dark:text-gray-200'));
-        document.querySelectorAll('.text-gray-800').forEach(el => el.classList.add('dark:text-gray-100'));
-        document.querySelectorAll('.text-gray-500').forEach(el => el.classList.add('dark:text-gray-400'));
-        document.querySelectorAll('.border-gray-200').forEach(el => el.classList.add('dark:border-gray-700'));
-        document.querySelectorAll('.shadow-md').forEach(el => el.classList.add('dark:shadow-lg', 'dark:shadow-gray-900'));
-        document.querySelectorAll('.bg-gray-200').forEach(el => {
-            if (el.id !== 'darkModeToggle') el.classList.replace('bg-gray-200', 'bg-gray-700');
-        });
-
-        if (totalAmountInput) totalAmountInput.classList.add('bg-gray-700', 'text-white');
-        if (discountAmountInput) discountAmountInput.classList.add('bg-red-700', 'text-white');
-        if (paymentAmountInput) paymentAmountInput.classList.add('bg-green-700', 'text-white');
-
-    } else {
-        body.classList.remove('dark-mode');
-        body.classList.remove('bg-gray-800'); // Remove dark background
-        body.classList.add('bg-gray-100'); // Add light background
-
-        document.querySelectorAll('.modal-content, .dark\\:bg-gray-800').forEach(el => {
-            el.classList.remove('dark:bg-gray-800', 'dark:text-gray-100');
-            el.classList.add('bg-white', 'text-gray-800');
-        });
-        document.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]), select, textarea').forEach(el => {
-            el.classList.remove('dark:bg-gray-700', 'dark:border-gray-600', 'dark:text-gray-200');
-            el.classList.add('bg-white', 'border-gray-300', 'text-gray-900');
-        });
-        document.querySelectorAll('.dark\\:text-gray-200').forEach(el => el.classList.remove('dark:text-gray-200'));
-        document.querySelectorAll('.dark\\:text-gray-100').forEach(el => el.classList.remove('dark:text-gray-100'));
-        document.querySelectorAll('.dark\\:text-gray-400').forEach(el => el.classList.remove('dark:text-gray-400'));
-        document.querySelectorAll('.dark\\:border-gray-700').forEach(el => el.classList.remove('dark:border-gray-700'));
-        document.querySelectorAll('.dark\\:shadow-lg').forEach(el => el.classList.remove('dark:shadow-lg', 'dark:shadow-gray-900'));
-         document.querySelectorAll('.bg-gray-700').forEach(el => {
-            if (el.id !== 'darkModeToggle') el.classList.replace('bg-gray-700', 'bg-gray-200');
-        });
-
-        if (totalAmountInput) totalAmountInput.classList.remove('bg-gray-700', 'text-white');
-        if (discountAmountInput) discountAmountInput.classList.remove('bg-red-700', 'text-white');
-        if (paymentAmountInput) paymentAmountInput.classList.remove('bg-green-700', 'text-white');
+// --- Functions for Local Storage ---
+// Loads products from localStorage.
+function loadProducts() {
+    try {
+        const storedProducts = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
+        products = storedProducts ? JSON.parse(storedProducts) : [
+             // Default products if none in storage
+            { id: 'prod001', name: "Kopi Hitam", price: 15000, cost: 10000, stock: 100 },
+            { id: 'prod002', name: "Kopi Susu", price: 18000, cost: 12000, stock: 80 },
+            { id: 'prod003', name: "Teh Manis", price: 10000, cost: 6000, stock: 150 },
+            { id: 'prod004', name: "Es Jeruk", price: 12000, cost: 7000, stock: 90 },
+            { id: 'prod005', name: "Roti Bakar Keju", price: 25000, cost: 18000, stock: 50 },
+            { id: 'prod006', name: "Mie Ayam", price: 22000, cost: 15000, stock: 70 },
+            { id: 'prod007', name: "Nasi Goreng", price: 28000, cost: 20000, stock: 60 },
+            { id: 'prod008', name: "Air Mineral", price: 5000, cost: 2000, stock: 200 },
+        ];
+        console.log("Produk dimuat:", products); // Log for debugging
+    } catch (e) {
+        console.error("Gagal memuat produk dari localStorage:", e);
+        products = [
+            // Fallback to default if there's an error
+            { id: 'prod001', name: "Kopi Hitam", price: 15000, cost: 10000, stock: 100 },
+            { id: 'prod002', name: "Kopi Susu", price: 18000, cost: 12000, stock: 80 },
+            { id: 'prod003', name: "Teh Manis", price: 10000, cost: 6000, stock: 150 },
+            { id: 'prod004', name: "Es Jeruk", price: 12000, cost: 7000, stock: 90 },
+            { id: 'prod005', name: "Roti Bakar Keju", price: 25000, cost: 18000, stock: 50 },
+            { id: 'prod006', name: "Mie Ayam", price: 22000, cost: 15000, stock: 70 },
+            { id: 'prod007', name: "Nasi Goreng", price: 28000, cost: 20000, stock: 60 },
+            { id: 'prod008', name: "Air Mineral", price: 5000, cost: 2000, stock: 200 },
+        ];
     }
-    // Update chart if visible
-    if (!financialReportModal.classList.contains('hidden')) {
-        calculateFinancialReport(); // Re-render chart with new theme colors
+    renderProductDatalist(); // NEW: Render datalist after products are loaded
+}
+
+// Saves products to localStorage.
+function saveProducts() {
+    try {
+        console.log("Menyimpan produk:", products); // Log for debugging
+        localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(products));
+    } catch (e) {
+        console.error("Gagal menyimpan produk ke localStorage:", e);
+        displayStatus("Error: Gagal menyimpan produk. Periksa penyimpanan browser Anda.", "error");
+    }
+    renderProductDatalist(); // NEW: Re-render datalist after products are saved
+}
+
+// Loads transaction history from localStorage.
+function loadTransactionHistory() {
+    try {
+        const storedTransactions = localStorage.getItem(LOCAL_STORAGE_TRANSACTIONS_KEY);
+        transactionHistory = storedTransactions ? JSON.parse(storedTransactions) : [];
+    } catch (e) {
+        console.error("Gagal memuat riwayat transaksi dari localStorage:", e);
+        transactionHistory = []; // Fallback to empty array
     }
 }
 
+// Saves transaction history to localStorage.
+function saveTransactionHistory() {
+    try {
+        localStorage.setItem(LOCAL_STORAGE_TRANSACTIONS_KEY, JSON.stringify(transactionHistory));
+    } catch (e) {
+        console.error("Gagal menyimpan riwayat transaksi ke localStorage:", e);
+        displayStatus("Error: Gagal menyimpan riwayat transaksi. Periksa penyimpanan browser Anda.", "error");
+    }
+}
 
+// Loads expenses from localStorage.
+function loadExpenses() {
+    try {
+        const storedExpenses = localStorage.getItem(LOCAL_STORAGE_EXPENSES_KEY);
+        expenses = storedExpenses ? JSON.parse(storedExpenses) : [];
+    } catch (e) {
+        console.error("Gagal memuat pengeluaran dari localStorage:", e);
+        expenses = []; // Fallback to empty array
+    }
+}
+
+// Saves expenses to localStorage.
+function saveExpenses() {
+    try {
+        localStorage.setItem(LOCAL_STORAGE_EXPENSES_KEY, JSON.stringify(expenses));
+    } catch (e) {
+        console.error("Gagal menyimpan pengeluaran ke localStorage:", e);
+        displayStatus("Error: Gagal menyimpan pengeluaran. Periksa penyimpanan browser Anda.", "error");
+    }
+}
+
+// New: Loads users from localStorage and loggedInUser from sessionStorage.
+function loadUsers() {
+    try {
+        const storedUsers = localStorage.getItem(LOCAL_STORAGE_USERS_KEY);
+        users = storedUsers ? JSON.parse(storedUsers) : [
+            // Default admin user if no users exist
+            { username: 'admin', password: 'admin', role: 'admin' }
+        ];
+        // Load loggedInUser from sessionStorage
+        const storedLoggedInUser = sessionStorage.getItem(SESSION_STORAGE_LOGGED_IN_USER_KEY);
+        loggedInUser = storedLoggedInUser ? JSON.parse(storedLoggedInUser) : null;
+    } catch (e) {
+        console.error("Gagal memuat pengguna dari localStorage/sessionStorage:", e);
+        users = [{ username: 'admin', password: 'admin', role: 'admin' }]; // Fallback to default admin
+        loggedInUser = null;
+    }
+}
+
+// New: Saves users to localStorage and loggedInUser to sessionStorage.
+function saveUsers() {
+    try {
+        localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
+        // Save loggedInUser to sessionStorage
+        sessionStorage.setItem(SESSION_STORAGE_LOGGED_IN_USER_KEY, JSON.stringify(loggedInUser));
+    } catch (e) {
+        console.error("Gagal menyimpan pengguna ke localStorage/sessionStorage:", e);
+        displayStatus("Error: Gagal menyimpan pengguna. Periksa penyimpanan browser Anda.", "error");
+    }
+}
+
+// Loads daily revenue from localStorage.
+function loadDailyRevenue() {
+    try {
+        const storedRevenue = localStorage.getItem(LOCAL_STORAGE_DAILY_REVENUE_KEY);
+        const storedDate = localStorage.getItem(LOCAL_STORAGE_LAST_DATE_KEY);
+        dailyRevenue = storedRevenue ? parseFloat(storedRevenue) : 0;
+        lastRecordedDate = storedDate || '';
+        console.log(`Loaded daily revenue: ${dailyRevenue}, last date: ${lastRecordedDate}`);
+    } catch (e) {
+        console.error("Gagal memuat pendapatan harian dari localStorage:", e);
+        dailyRevenue = 0;
+        lastRecordedDate = '';
+    }
+}
+
+// Saves daily revenue to localStorage.
+function saveDailyRevenue() {
+    try {
+        localStorage.setItem(LOCAL_STORAGE_DAILY_REVENUE_KEY, dailyRevenue.toString());
+        localStorage.setItem(LOCAL_STORAGE_LAST_DATE_KEY, lastRecordedDate);
+        console.log(`Saved daily revenue: ${dailyRevenue}, last date: ${lastRecordedDate}`);
+    }
+    catch (e) {
+        console.error("Gagal menyimpan pendapatan harian ke localStorage:", e);
+    }
+}
+
+// Loads revenue visibility state from localStorage
+function loadRevenueVisibility() {
+    try {
+        const storedVisibility = localStorage.getItem(LOCAL_STORAGE_REVENUE_VISIBILITY_KEY);
+        // Default to true (visible) if not found or explicitly false
+        isRevenueVisible = storedVisibility !== null ? JSON.parse(storedVisibility) : true;
+    } catch (e) {
+        console.error("Gagal memuat status visibilitas pendapatan dari localStorage:", e);
+        isRevenueVisible = true; // Default to visible on error
+    }
+}
+
+// Saves revenue visibility state to localStorage
+function saveRevenueVisibility() {
+    try {
+        localStorage.setItem(LOCAL_STORAGE_REVENUE_VISIBILITY_KEY, JSON.stringify(isRevenueVisible));
+    } catch (e) {
+        console.error("Gagal menyimpan status visibilitas pendapatan ke localStorage:", e);
+    }
+}
+
+// New: Loads dark mode state from localStorage
+function loadDarkModeState() {
+    try {
+        const storedDarkMode = localStorage.getItem(LOCAL_STORAGE_DARK_MODE_KEY);
+        isDarkMode = storedDarkMode !== null ? JSON.parse(storedDarkMode) : false; // Default to light mode
+    } catch (e) {
+        console.error("Gagal memuat status mode gelap dari localStorage:", e);
+        isDarkMode = false; // Default to light mode on error
+    }
+}
+
+// New: Saves dark mode state to localStorage
+function saveDarkModeState() {
+    try {
+        localStorage.setItem(LOCAL_STORAGE_DARK_MODE_KEY, JSON.stringify(isDarkMode));
+    } catch (e) {
+        console.error("Gagal menyimpan status mode gelap ke localStorage:", e);
+    }
+}
+
+// New: Loads monthly financial data from localStorage
+function loadMonthlyFinancialData() {
+    try {
+        const storedProfit = localStorage.getItem(LOCAL_STORAGE_MONTHLY_NET_PROFIT_KEY);
+        const storedExpenses = localStorage.getItem(LOCAL_STORAGE_MONTHLY_EXPENSES_KEY);
+        const storedMonth = localStorage.getItem(LOCAL_STORAGE_LAST_MONTH_KEY);
+
+        monthlyNetProfit = storedProfit ? parseFloat(storedProfit) : 0;
+        monthlyExpenses = storedExpenses ? parseFloat(storedExpenses) : 0;
+        lastRecordedMonth = storedMonth || '';
+    } catch (e) {
+        console.error("Gagal memuat data keuangan bulanan dari localStorage:", e);
+        monthlyNetProfit = 0;
+        monthlyExpenses = 0;
+        lastRecordedMonth = '';
+    }
+}
+
+// New: Saves monthly financial data to localStorage
+function saveMonthlyFinancialData() {
+    try {
+        localStorage.setItem(LOCAL_STORAGE_MONTHLY_NET_PROFIT_KEY, monthlyNetProfit.toString());
+        localStorage.setItem(LOCAL_STORAGE_MONTHLY_EXPENSES_KEY, monthlyExpenses.toString());
+        localStorage.setItem(LOCAL_STORAGE_LAST_MONTH_KEY, lastRecordedMonth);
+    } catch (e) {
+        console.error("Gagal menyimpan data keuangan bulanan ke localStorage:", e);
+    }
+}
+
+// New: Applies dark mode classes to the body
+function applyDarkMode() {
+    if (isDarkMode) {
+        document.body.classList.add('dark-mode');
+    } else {
+        document.body.classList.remove('dark-mode');
+    }
+}
+
+// --- General Utility Functions ---
 // Displays a status message to the user.
-function displayStatus(message, type, element = statusElement) {
+function displayStatus(message, type, element = statusElement) { // Added optional element parameter
     if (!element) return;
     element.textContent = message;
     // Using Tailwind classes dynamically based on theme for status messages
@@ -386,382 +555,6 @@ function displayStatus(message, type, element = statusElement) {
     element.classList.remove('hidden'); // Ensure message box is visible
 }
 
-
-// --- Fungsi Inisialisasi Firebase dan Listener ---
-
-/**
- * Menginisialisasi variabel Firebase dari objek global yang diekspor di index.html
- * dan menyiapkan listener otentikasi.
- */
-async function initializeFirebase() {
-    // Pastikan objek Firebase sudah diekspor dari script module di index.html
-    app = window.firebaseApp;
-    auth = window.firebaseAuth;
-    db = window.firebaseDb;
-
-    if (!app || !auth || !db) {
-        console.error("Firebase tidak diinisialisasi dengan benar. Pastikan Firebase CDN dimuat dan diekspor di index.html.");
-        displayStatus("Error: Firebase tidak siap. Harap muat ulang halaman.", "error");
-        return;
-    }
-
-    // Listener untuk perubahan status otentikasi
-    // Ini adalah bagian KRITIS untuk mengelola UI dan pemuatan data
-    window.onAuthStateChanged(auth, async (user) => { // Menggunakan window.onAuthStateChanged
-        if (user) {
-            // Pengguna login
-            currentUserId = user.uid;
-            console.log("Pengguna login:", user.email, "UID:", user.uid);
-            // FIX: Menggunakan fungsi baru untuk menangani penentuan/pengambilan role
-            await assignUserRole(user);
-            loggedInUser = { email: user.email, uid: user.uid, role: userRole }; // Gabungkan data Auth dan role
-
-            // Setelah mendapatkan role, baru tampilkan UI dan muat data
-            updateCashierDisplay(); // Perbarui display kasir
-            mainAppContainer.classList.remove('hidden'); // Tampilkan aplikasi utama
-            loginScreen.classList.add('hidden'); // Sembunyikan layar login
-
-            setupFirestoreListeners(); // Siapkan semua listener Firestore untuk data
-            startNewTransaction(); // Mulai transaksi baru setelah login
-            loadSavedPrinter(); // Coba sambungkan kembali printer
-            applyDarkMode(); // Terapkan mode gelap (ini sekarang dijamin sudah terdefinisi)
-        } else {
-            // Pengguna logout atau tidak ada pengguna login
-            currentUserId = null;
-            userRole = null;
-            loggedInUser = null;
-            console.log("Pengguna logout.");
-
-            cleanupFirestoreListeners(); // Bersihkan semua listener Firestore
-            updateCashierDisplay(); // Perbarui display kasir
-            loginScreen.classList.remove('hidden'); // Tampilkan layar login
-            mainAppContainer.classList.add('hidden'); // Sembunyikan aplikasi utama
-            startNewTransaction(); // Reset state transaksi
-        }
-    });
-}
-
-/**
- * Mengambil atau menetapkan role pengguna dari/ke Firestore.
- * Jika dokumen role tidak ada, akan membuat role default ('cashier')
- * atau 'admin' jika ini adalah pengguna pertama di sistem.
- * @param {object} user - Objek pengguna dari Firebase Auth.
- */
-async function assignUserRole(user) {
-    const userRef = window.doc(db, USER_ROLES_COLLECTION_PATH, user.uid);
-    try {
-        const userDoc = await window.getDoc(userRef);
-        if (userDoc.exists()) {
-            userRole = userDoc.data().role;
-            console.log("Role pengguna:", userRole);
-        } else {
-            // Dokumen role tidak ada untuk pengguna ini.
-            // Cek apakah ada pengguna lain di koleksi 'users' sama sekali.
-            const usersSnapshot = await window.getDocs(window.collection(db, USER_ROLES_COLLECTION_PATH));
-            if (usersSnapshot.empty) {
-                // Jika ini adalah pengguna pertama, jadikan admin.
-                userRole = 'admin';
-                await window.setDoc(userRef, { email: user.email, role: 'admin' });
-                console.log("Pengguna pertama didaftarkan sebagai Admin:", user.email);
-            } else {
-                // Bukan pengguna pertama, tetapkan role default 'cashier'.
-                userRole = 'cashier';
-                await window.setDoc(userRef, { email: user.email, role: 'cashier' });
-                console.warn("Dokumen role pengguna tidak ditemukan untuk UID:", user.uid, ". Defaulting to 'cashier'.");
-            }
-        }
-    } catch (error) {
-        console.error("Error fetching or assigning user role:", error);
-        userRole = 'cashier'; // Fallback to cashier on error
-    }
-}
-
-/**
- * Menyiapkan semua listener real-time Firestore untuk data aplikasi.
- */
-function setupFirestoreListeners() {
-    // Pastikan listener sebelumnya dibersihkan
-    cleanupFirestoreListeners();
-
-    if (!db || !currentUserId) {
-        console.error("Firestore DB atau UID tidak tersedia untuk menyiapkan listener.");
-        return;
-    }
-
-    // Listener untuk Products (Publik)
-    unsubscribeProducts = window.onSnapshot(window.collection(db, PUBLIC_PRODUCTS_COLLECTION_PATH), (snapshot) => { // Menggunakan window.onSnapshot dan window.collection
-        products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log("Produk dimuat dari Firestore:", products);
-        renderProductDatalist();
-        // Render store products jika modalnya terbuka (opsional, bisa dipicu saat modal dibuka)
-        if (!storeProductsModal.classList.contains('hidden')) {
-            renderStoreProducts(searchStoreProductsInput.value);
-        }
-    }, (error) => {
-        console.error("Error fetching products:", error);
-        displayStatus("Error memuat produk dari Firestore.", "error");
-    });
-
-    // FIX: Listener untuk Transactions (Sekarang Publik)
-    unsubscribePublicTransactions = window.onSnapshot(window.collection(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH), (snapshot) => {
-        transactionHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log("Riwayat transaksi dimuat dari Firestore (publik):", transactionHistory);
-        // Render riwayat transaksi jika modalnya terbuka
-        if (!transactionHistoryModal.classList.contains('hidden')) {
-            renderTransactionHistory(historyStartDateInput.value, historyEndDateInput.value);
-        }
-        // Perbarui laporan keuangan juga
-        if (!financialReportModal.classList.contains('hidden')) {
-            calculateFinancialReport();
-        }
-    }, (error) => {
-        console.error("Error fetching public transactions:", error);
-        displayStatus("Error memuat riwayat transaksi dari Firestore.", "error");
-    });
-
-    // FIX: Listener untuk Expenses (Sekarang Publik)
-    unsubscribePublicExpenses = window.onSnapshot(window.collection(db, PUBLIC_EXPENSES_COLLECTION_PATH), (snapshot) => {
-        expenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log("Pengeluaran dimuat dari Firestore (publik):", expenses);
-        // Render pengeluaran jika modalnya terbuka
-        if (!expensesModal.classList.contains('hidden')) {
-            renderExpenses();
-        }
-        // Perbarui laporan keuangan juga
-        if (!financialReportModal.classList.contains('hidden')) {
-            calculateFinancialReport();
-        }
-    }, (error) => {
-        console.error("Error fetching public expenses:", error);
-        displayStatus("Error memuat pengeluaran dari Firestore.", "error");
-    });
-
-    // FIX: Listener baru untuk Store Metrics (Pendapatan Harian/Bulanan Global)
-    unsubscribeStoreMetrics = window.onSnapshot(window.doc(db, STORE_METRICS_DOC_PATH), (docSnapshot) => {
-        if (docSnapshot.exists()) {
-            const storeMetricsData = docSnapshot.data();
-            dailyRevenue = storeMetricsData.dailyRevenue || 0;
-            lastRecordedDate = storeMetricsData.lastRecordedDate || '';
-            monthlyNetProfit = storeMetricsData.monthlyNetProfit || 0;
-            monthlyExpenses = storeMetricsData.monthlyExpenses || 0;
-            lastRecordedMonth = storeMetricsData.lastRecordedMonth || '';
-
-            console.log("Store metrics dimuat dari Firestore:", storeMetricsData);
-            checkAndResetDailyRevenue(); // Panggil ini untuk update UI dan reset jika tanggal/bulan berubah
-            updateHeaderDailyRevenue();
-            renderMonthlyFinancialBar();
-        } else {
-            console.log("Dokumen storeMetrics tidak ditemukan, membuat default.");
-            // Buat dokumen storeMetrics default jika tidak ada
-            window.setDoc(window.doc(db, STORE_METRICS_DOC_PATH), {
-                dailyRevenue: 0,
-                lastRecordedDate: new Date().toISOString().slice(0, 10),
-                monthlyNetProfit: 0,
-                monthlyExpenses: 0,
-                lastRecordedMonth: new Date().toISOString().slice(0, 7)
-            });
-        }
-    }, (error) => {
-        console.error("Error fetching store metrics:", error);
-        displayStatus("Error memuat metrik toko dari Firestore.", "error");
-    });
-
-    // Listener untuk App State (Privat per pengguna) - tetap sama
-    unsubscribeAppState = window.onSnapshot(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), (docSnapshot) => { // Menggunakan window.onSnapshot dan window.doc
-        if (docSnapshot.exists()) {
-            const appStateData = docSnapshot.data();
-            // FIX: Hanya load user-specific settings dari appState
-            isRevenueVisible = typeof appStateData.isRevenueVisible !== 'undefined' ? appStateData.isRevenueVisible : true;
-            isDarkMode = typeof appStateData.isDarkMode !== 'undefined' ? appStateData.isDarkMode : false;
-            // lastConnectedPrinterId juga user-specific
-            const savedPrinterId = appStateData.lastConnectedPrinterId || null;
-            if (savedPrinterId) {
-                // Logic untuk reconnect printer, tidak diubah.
-            }
-            console.log("User-specific app state dimuat dari Firestore:", appStateData);
-            // FIX: applyDarkMode perlu dipanggil ulang kalau isDarkMode berubah
-            applyDarkMode();
-            updateHeaderDailyRevenue(); // Update display karena isRevenueVisible bisa berubah
-        } else {
-            console.log("Dokumen appState pribadi tidak ditemukan, membuat default.");
-            // Buat dokumen appState default jika tidak ada
-            window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { // Menggunakan window.setDoc dan window.doc
-                isRevenueVisible: true,
-                isDarkMode: false,
-                lastConnectedPrinterId: null
-            });
-        }
-    }, (error) => {
-        console.error("Error fetching user app state:", error);
-        displayStatus("Error memuat pengaturan aplikasi pribadi dari Firestore.", "error");
-    });
-
-
-    // Listener untuk User Roles (hanya untuk pengguna saat ini)
-    unsubscribeUserRoles = window.onSnapshot(window.doc(db, USER_ROLES_COLLECTION_PATH, currentUserId), (docSnapshot) => { // Menggunakan window.onSnapshot dan window.doc
-        if (docSnapshot.exists()) {
-            userRole = docSnapshot.data().role;
-            if (loggedInUser) loggedInUser.role = userRole; // Perbarui role di objek loggedInUser
-            console.log("Role pengguna diperbarui:", userRole);
-            updateCashierDisplay(); // Perbarui tampilan kasir dan menu admin
-            if (!userSettingsModal.classList.contains('hidden')) {
-                showUserManagementSection(); // Re-render bagian manajemen user jika modalnya terbuka
-            }
-        }
-    }, (error) => {
-        console.error("Error fetching user's role in real-time:", error);
-    });
-}
-
-/**
- * Membersihkan semua listener real-time Firestore.
- */
-function cleanupFirestoreListeners() {
-    if (unsubscribeProducts) unsubscribeProducts();
-    // FIX: Bersihkan listener publik yang baru
-    if (unsubscribePublicTransactions) unsubscribePublicTransactions();
-    if (unsubscribePublicExpenses) unsubscribePublicExpenses();
-    if (unsubscribeStoreMetrics) unsubscribeStoreMetrics();
-
-    if (unsubscribeAppState) unsubscribeAppState();
-    if (unsubscribeUserRoles) unsubscribeUserRoles();
-
-    unsubscribeProducts = null;
-    unsubscribePublicTransactions = null;
-    unsubscribePublicExpenses = null;
-    unsubscribeStoreMetrics = null;
-    unsubscribeAppState = null;
-    unsubscribeUserRoles = null;
-}
-
-// --- Fungsi Penyimpanan Firebase (Menggantikan Local Storage) ---
-
-/**
- * Menyimpan produk ke Firestore.
- * Biasanya dipicu setelah perubahan pada array `products` lokal.
- */
-async function saveProductsToFirestore() {
-    if (!db || !currentUserId) {
-        console.warn("Tidak dapat menyimpan produk: DB atau UID tidak tersedia.");
-        return;
-    }
-    try {
-        // Ambil dokumen produk yang sudah ada di Firestore
-        const existingDocs = await window.getDocs(window.collection(db, PUBLIC_PRODUCTS_COLLECTION_PATH)); // Menggunakan window.getDocs dan window.collection
-        const existingProductIds = existingDocs.docs.map(doc => doc.id);
-        const newProductIds = products.map(p => p.id);
-
-        // Hapus produk yang tidak lagi ada di array lokal
-        for (const id of existingProductIds) {
-            if (!newProductIds.includes(id)) {
-                await window.deleteDoc(window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, id)); // Menggunakan window.deleteDoc dan window.doc
-            }
-        }
-
-        // Tambahkan atau perbarui produk yang ada di array lokal
-        for (const product of products) {
-            await window.setDoc(window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, product.id), product); // Menggunakan window.setDoc dan window.doc
-        }
-        console.log("Produk berhasil disimpan ke Firestore.");
-        renderProductDatalist(); // Perbarui datalist setelah save
-    } catch (e) {
-        console.error("Gagal menyimpan produk ke Firestore:", e);
-        displayStatus("Error: Gagal menyimpan produk. Periksa koneksi internet atau hak akses.", "error");
-    }
-}
-
-
-/**
- * Menyimpan transaksi ke Firestore.
- * Dipanggil saat ada transaksi baru.
- * @param {object} transactionRecord - Objek transaksi yang akan disimpan.
- */
-async function saveTransactionToFirestore(transactionRecord) {
-    if (!db || !currentUserId) { // currentUserId tetap diperlukan untuk loggedInUser.email/uid
-        console.warn("Tidak dapat menyimpan transaksi: DB atau UID tidak tersedia.");
-        return false;
-    }
-    try {
-        // FIX: Simpan ke koleksi transaksi publik
-        await window.setDoc(window.doc(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH, transactionRecord.id), transactionRecord);
-        console.log("Transaksi berhasil disimpan ke Firestore (publik):", transactionRecord.id);
-        return true;
-    } catch (e) {
-        console.error("Gagal menyimpan transaksi ke Firestore:", e);
-        displayStatus("Error: Gagal menyimpan transaksi. Periksa koneksi internet atau hak akses.", "error");
-        return false;
-    }
-}
-
-/**
- * Menyimpan pengeluaran ke Firestore.
- * Dipanggil saat ada pengeluaran baru atau perubahan.
- */
-async function saveExpenseToFirestore(expenseRecord) {
-    if (!db || !currentUserId) { // currentUserId tetap diperlukan untuk otentikasi
-        console.warn("Tidak dapat menyimpan pengeluaran: DB atau UID tidak tersedia.");
-        return false;
-    }
-    try {
-        // FIX: Simpan ke koleksi pengeluaran publik
-        await window.setDoc(window.doc(db, PUBLIC_EXPENSES_COLLECTION_PATH, expenseRecord.id), expenseRecord);
-        console.log("Pengeluaran berhasil disimpan ke Firestore (publik):", expenseRecord.id);
-        return true;
-    } catch (e) {
-        console.error("Gagal menyimpan pengeluaran ke Firestore:", e);
-        displayStatus("Error: Gagal menyimpan pengeluaran. Periksa koneksi internet atau hak akses.", "error");
-        return false;
-    }
-}
-
-/**
- * Menyimpan state aplikasi user-specific ke Firestore (mode gelap, printer id).
- */
-async function saveAppStateToFirestore() {
-    if (!db || !currentUserId) {
-        console.warn("Tidak dapat menyimpan app state pribadi: DB atau UID tidak tersedia.");
-        return;
-    }
-    try {
-        const appStateData = {
-            isRevenueVisible: isRevenueVisible,
-            isDarkMode: isDarkMode,
-            lastConnectedPrinterId: bluetoothPrinterDevice ? bluetoothPrinterDevice.id : null // Simpan ID printer
-        };
-        await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), appStateData, { merge: true }); // Menggunakan window.setDoc dan window.doc
-        console.log("App state pribadi berhasil disimpan ke Firestore.");
-    } catch (e) {
-        console.error("Gagal menyimpan app state pribadi ke Firestore:", e);
-        displayStatus("Error: Gagal menyimpan pengaturan aplikasi pribadi. Periksa koneksi internet atau hak akses.", "error");
-    }
-}
-
-/**
- * FIX: Fungsi baru untuk menyimpan metrik toko global ke Firestore.
- */
-async function saveStoreMetricsToFirestore() {
-    if (!db) {
-        console.warn("Tidak dapat menyimpan metrik toko: DB tidak tersedia.");
-        return;
-    }
-    try {
-        const storeMetricsData = {
-            dailyRevenue: dailyRevenue,
-            lastRecordedDate: lastRecordedDate,
-            monthlyNetProfit: monthlyNetProfit,
-            monthlyExpenses: monthlyExpenses,
-            lastRecordedMonth: lastRecordedMonth
-        };
-        // Menggunakan merge: true agar tidak menimpa field lain jika ada
-        await window.setDoc(window.doc(db, STORE_METRICS_DOC_PATH), storeMetricsData, { merge: true });
-        console.log("Store metrics berhasil disimpan ke Firestore.");
-    } catch (e) {
-        console.error("Gagal menyimpan store metrics ke Firestore:", e);
-        displayStatus("Error: Gagal menyimpan metrik toko. Periksa koneksi internet.", "error");
-    }
-}
-
-
 // Updates the daily revenue display in the header based on visibility.
 function updateHeaderDailyRevenue() {
     if (headerDailyRevenue) {
@@ -779,7 +572,7 @@ function updateHeaderDailyRevenue() {
 
 // Checks if the date has changed and resets daily revenue if so.
 // Also checks if the month has changed and resets monthly financial data.
-async function checkAndResetDailyRevenue() {
+function checkAndResetDailyRevenue() {
     const today = new Date().toISOString().slice(0, 10); //YYYY-MM-DD
     const thisMonth = new Date().toISOString().slice(0, 7); //YYYY-MM
 
@@ -787,8 +580,7 @@ async function checkAndResetDailyRevenue() {
         console.log(`Date changed from ${lastRecordedDate} to ${today}. Resetting daily revenue.`);
         dailyRevenue = 0;
         lastRecordedDate = today;
-        // FIX: Simpan ke store metrics global
-        await saveStoreMetricsToFirestore();
+        saveDailyRevenue(); // Save the reset revenue and new date
         displayStatus("Pendapatan harian direset untuk hari baru.", "info");
     }
     updateHeaderDailyRevenue(); // Always update header with current daily revenue
@@ -798,13 +590,12 @@ async function checkAndResetDailyRevenue() {
         monthlyNetProfit = 0;
         monthlyExpenses = 0;
         lastRecordedMonth = thisMonth;
-        // FIX: Simpan ke store metrics global
-        await saveStoreMetricsToFirestore();
+        saveMonthlyFinancialData(); // Save the reset monthly data and new month
     }
     renderMonthlyFinancialBar(); // Always update the monthly bar
 }
 
-// Renders the monthly financial profit/expense bar in the header.
+// New: Renders the monthly financial profit/expense bar in the header.
 function renderMonthlyFinancialBar() {
     if (!monthlyProfitBar || !monthlyExpenseBar || !monthlyFinancialBarContainer) return;
 
@@ -894,14 +685,14 @@ function copyTextToClipboard(text, successMessageElement) {
     });
 }
 
-// Function to play scan success sound
+// NEW: Function to play scan success sound
 function playScanSuccessSound() {
     if (scanSuccessSound) {
         scanSuccessSound.play().catch(e => console.error("Error playing scan success sound:", e));
     }
 }
 
-// Function to play transaction success sound
+// New: Function to play transaction success sound
 function playTransactionSuccessSound() {
     if (transactionSuccessSound) {
         transactionSuccessSound.play().catch(e => console.error("Error playing transaction success sound:", e));
@@ -912,20 +703,21 @@ function playTransactionSuccessSound() {
 // --- Core Application Logic ---
 
 // Adds a product to the transaction list.
-function addProductToTransaction(id, name, price, qty, isCustom = false) {
+function addProductToTransaction(id, name, price, qty, isCustom = false, isOnlineShop = false, marketplace = '', resi = '') {
     // For custom products, we give them a unique ID. Registered products use their original ID.
-    const finalId = isCustom ? 'custom-' + Date.now() : id;
+    // For online shop products, we also give them a unique ID.
+    const finalId = isCustom ? 'custom-' + Date.now() : (isOnlineShop ? 'online-' + Date.now() : id);
 
     // Check if product already exists in the cart (only for registered products)
-    // Custom products are always added as new lines, even if they have the same name/price.
-    const existingItemIndex = currentTransactionItems.findIndex(item => item.productId === finalId && !isCustom);
+    // Custom and Online Shop products are always added as new lines, even if they have the same name/price.
+    const existingItemIndex = currentTransactionItems.findIndex(item => item.productId === finalId && !isCustom && !isOnlineShop);
 
     // Find the product in the global products array to get its cost and current stock
-    // For custom products, productData will be undefined as they don't exist in the 'products' array.
+    // For custom/online shop products, productData will be undefined as they don't exist in the 'products' array.
     const productData = products.find(p => p.id === id);
 
     // Check stock for registered products before adding/updating quantity
-    if (!isCustom && productData && productData.stock !== undefined) {
+    if (!isCustom && !isOnlineShop && productData && productData.stock !== undefined) {
         const currentQtyInCart = existingItemIndex > -1 ? currentTransactionItems[existingItemIndex].qty : 0;
         const newTotalQty = currentQtyInCart + qty;
 
@@ -948,8 +740,12 @@ function addProductToTransaction(id, name, price, qty, isCustom = false) {
             // Store cost for financial report
             // For registered products: use actual cost
             // For custom products: calculate cost as 80% of price (20% margin)
-            cost: isCustom ? (price * 0.8) : (productData?.cost || 0),
-            isCustom: isCustom // Add a flag to identify custom products
+            // For online shop products: calculate cost as 75% of price (25% margin)
+            cost: isCustom ? (price * 0.8) : (isOnlineShop ? (price * 0.75) : (productData?.cost || 0)),
+            isCustom: isCustom, // Add a flag to identify custom products
+            isOnlineShop: isOnlineShop, // Add a flag to identify online shop products
+            marketplace: marketplace, // Store marketplace name
+            resi: resi // Store resi number
         });
     }
     renderTransactionItems();
@@ -988,7 +784,7 @@ function renderTransactionItems() {
 
             itemDiv.className = `flex flex-col sm:flex-row items-center gap-2 mb-3 p-3 rounded-md shadow-sm border ${itemBgClass} ${itemBorderClass}`;
             itemDiv.innerHTML = `
-                <span class="flex-1 font-medium ${itemTextClass}">${item.name}</span>
+                <span class="flex-1 font-medium ${itemTextClass}">${item.name} ${item.isOnlineShop ? `(${item.marketplace} - ${item.resi})` : ''}</span>
                 <input type="number" value="${item.qty}" data-item-index="${index}" class="item-qty-input px-2 py-1 border rounded-md text-center focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm ${itemQtyInputBg} ${itemQtyInputBorder} ${itemQtyInputText}">
                 <span class="font-semibold w-24 text-right ${itemPriceText}">Rp ${item.price.toLocaleString('id-ID')}</span>
                 <span class="font-bold w-28 text-right ${itemTotalText}">Rp ${(item.qty * item.price).toLocaleString('id-ID')}</span>
@@ -1004,15 +800,15 @@ function renderTransactionItems() {
     const finalTotal = subtotal - discount;
     totalAmountInput.value = `Rp ${finalTotal.toLocaleString('id-ID')}`; // Update to show final total after discount
     calculateChange();
-    updateHeaderDateTime();
-    updateCashierDisplay(); // Cashier display updated from Firebase Auth
+    updateHeaderDateTime(); // Update date/time on item render or init
+    updateCashierDisplay();
 }
 
 // Calculates and displays the change.
 function calculateChange() {
-    if (!totalAmountInput || !paymentAmountInput || !changeAmountHeader) return;
-    const total = parseFloat(totalAmountInput.value.replace(/[^0-9,-]+/g, "").replace(",", ".")) || 0;
-    const payment = parseFloat(paymentAmountInput.value) || 0;
+    if (!totalAmountInput || !paymentAmountInput || !changeAmountHeader) return; // Ensure elements exist
+    const total = parseFloat(totalAmountInput.value.replace(/[^0-9,-]+/g, "").replace(",", ".")) || 0; // Clean 'Rp' and commas
+    const payment = parseFloat(paymentAmountInput.value.replace(/[^0-9,-]+/g, "").replace(",", ".")) || 0; // Clean 'Rp' and commas
     const change = payment - total;
 
     // Update the change amount in the header
@@ -1021,81 +817,97 @@ function calculateChange() {
 
 // Updates the current date and time display in the header.
 function updateHeaderDateTime() {
-    if (!headerDateTime) return;
+    if (!headerDateTime) return; // Ensure element exists
     const now = new Date();
     const options = {
         year: 'numeric', month: 'long', day: 'numeric',
         hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hour12: false
+        hour12: false // Use 24-hour format
     };
     headerDateTime.textContent = now.toLocaleDateString('id-ID', options);
 }
 
 // Updates cashier display in header and controls admin menu visibility.
 function updateCashierDisplay() {
+    // Check all required elements for null/undefined before proceeding
     if (!cashierDisplay || !cashierRole || !adminMenuButton || !adminMenuDropdown) return;
 
-    if (loggedInUser && loggedInUser.email) {
-        cashierDisplay.textContent = loggedInUser.email;
-        cashierRole.textContent = loggedInUser.role; // Tampilkan role dari Firestore
-        // Tampilkan menu admin hanya jika pengguna yang login adalah admin
+    if (loggedInUser) {
+        cashierDisplay.textContent = loggedInUser.username;
+        cashierRole.textContent = loggedInUser.role;
+        // Show admin menu only if logged in user is admin
         if (loggedInUser.role === 'admin') {
             adminMenuButton.classList.remove('hidden');
         } else {
             adminMenuButton.classList.add('hidden');
-            adminMenuDropdown.classList.add('hidden'); // Pastikan dropdown disembunyikan untuk non-admin
+            adminMenuDropdown.classList.add('hidden'); // Ensure dropdown is hidden for non-admins
         }
     } else {
         cashierDisplay.textContent = 'Tidak Login';
         cashierRole.textContent = '';
-        adminMenuButton.classList.add('hidden'); // Sembunyikan menu admin jika tidak login
-        adminMenuDropdown.classList.add('hidden'); // Pastikan dropdown disembunyikan
+        adminMenuButton.classList.add('hidden'); // Hide admin menu if not logged in
+        adminMenuDropdown.classList.add('hidden'); // Ensure dropdown is hidden
     }
 }
 
 // Resets the transaction for a new one.
 function startNewTransaction() {
     currentTransactionItems = [];
+    // Ensure payment and change inputs are reset BEFORE rendering items
     if (paymentAmountInput) paymentAmountInput.value = '0';
-    if (discountAmountInput) discountAmountInput.value = '0';
-    if (changeAmountHeader) changeAmountHeader.textContent = 'Rp 0';
-    if (paymentMethodSelect) paymentMethodSelect.value = "Tunai";
+    if (discountAmountInput) discountAmountInput.value = '0'; // Reset discount
+    if (changeAmountHeader) changeAmountHeader.textContent = 'Rp 0'; // Explicitly set to 0
+    if (paymentMethodSelect) paymentMethodSelect.value = "Tunai"; // Reset payment method
 
-    renderTransactionItems();
+    renderTransactionItems(); // This will now calculate change based on the reset payment input and empty cart.
 
+    if (document.getElementById('transactionNumber')) document.getElementById('transactionNumber').value = 'TRX-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     displayStatus("", ""); // Clear status
     updateHeaderDateTime();
     updateCashierDisplay();
-    updateHeaderDailyRevenue(); // Ambil dari data global
-    renderMonthlyFinancialBar(); // Ambil dari data global
-
+    updateHeaderDailyRevenue(); // Update daily revenue display on new transaction start
+    renderMonthlyFinancialBar(); // Update the monthly bar
+    // Clear registered product inputs
     if (productCodeInput) productCodeInput.value = '';
     if (productNameInput) productNameInput.value = '';
     if (priceInput) priceInput.value = '0';
     if (quantityInput) quantityInput.value = '1';
 
+    // Clear custom product inputs
     if (customProductCodeInput) customProductCodeInput.value = '';
     if (customProductNameInput) customProductNameInput.value = '';
     if (customProductPriceInput) customProductPriceInput.value = '0';
     if (customProductQtyInput) customProductQtyInput.value = '1';
 
+    // Clear online shop inputs
+    if (marketplaceNameSelect) marketplaceNameSelect.value = '';
+    if (otherMarketplaceNameInput) otherMarketplaceNameInput.value = '';
+    if (otherMarketplaceNameContainer) otherMarketplaceNameContainer.style.display = 'none';
+    if (resiNumberInput) resiNumberInput.value = '';
+    if (onlineShopPriceInput) onlineShopPriceInput.value = '0';
+    if (onlineShopQuantityInput) onlineShopQuantityInput.value = '1';
+
+    // Stop scanner if it's running
     stopQrScanner();
 
+    // Set default view to Registered Products
     showSection('registered');
 }
 
-// Function to toggle sections (Registered/Custom/Scanner Products).
+// Function to toggle sections (Registered/Custom/Online Shop/Scanner Products).
 function showSection(mode) {
     currentTransactionMode = mode;
 
     // Hide all sections first
     registeredProductSection.classList.add('hidden');
     customProductSection.classList.add('hidden');
+    onlineShopSection.classList.add('hidden'); // NEW: Hide online shop section
     scannerSection.classList.add('hidden');
 
     // Reset button styles
     showRegisteredProductsButton.classList.remove('bg-green-500', 'hover:bg-green-600', 'bg-gray-400', 'hover:bg-gray-500');
     showCustomProductsButton.classList.remove('bg-green-500', 'hover:bg-green-600', 'bg-gray-400', 'hover:bg-gray-500');
+    showOnlineShopProductsButton.classList.remove('bg-purple-500', 'hover:bg-purple-600', 'bg-gray-400', 'hover:bg-gray-500'); // NEW: Online shop button
     showScannerProductsButton.classList.remove('bg-green-500', 'hover:bg-green-600', 'bg-blue-500', 'hover:bg-blue-600');
 
     // Stop scanner if switching away from scanner section
@@ -1108,32 +920,51 @@ function showSection(mode) {
         registeredProductSection.classList.remove('hidden');
         showRegisteredProductsButton.classList.add('bg-green-500', 'hover:bg-green-600');
         showCustomProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500');
+        showOnlineShopProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500'); // NEW
         showScannerProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500');
+        paymentMethodSelect.value = "Tunai"; // Default to Tunai for registered/cashier
+        paymentAmountInput.disabled = false; // Enable payment input
     } else if (mode === 'custom') {
         customProductSection.classList.remove('hidden');
         showRegisteredProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500');
         showCustomProductsButton.classList.add('bg-green-500', 'hover:bg-green-600');
+        showOnlineShopProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500'); // NEW
         showScannerProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500');
+        paymentMethodSelect.value = "Tunai"; // Default to Tunai for custom
+        paymentAmountInput.disabled = false; // Enable payment input
+    } else if (mode === 'online-shop') { // NEW: Online Shop mode
+        onlineShopSection.classList.remove('hidden');
+        showRegisteredProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500');
+        showCustomProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500');
+        showOnlineShopProductsButton.classList.add('bg-purple-500', 'hover:bg-purple-600'); // Active style for online shop
+        showScannerProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500');
+        paymentMethodSelect.value = "Transfer Bank"; // Force Transfer Bank for online shop
+        paymentAmountInput.disabled = true; // Disable payment input for online shop
+        calculateChange(); // Recalculate to update payment amount based on total
     } else if (mode === 'scanner') {
         scannerSection.classList.remove('hidden');
         showRegisteredProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500');
         showCustomProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500');
+        showOnlineShopProductsButton.classList.add('bg-gray-400', 'hover:bg-gray-500'); // NEW
         showScannerProductsButton.classList.add('bg-green-500', 'hover:bg-green-600'); // Use green for active scanner button
         // Automatically start scanner when switching to this section
         startQrScanner();
+        paymentMethodSelect.value = "Tunai"; // Default to Tunai for scanner
+        paymentAmountInput.disabled = false; // Enable payment input
     }
 }
 
-// Function to prepare transaction object and decrement stock
-async function createTransactionObjectAndDecrementStock() {
-    const total = parseFloat(totalAmountInput.value.replace(/[^0-9,-]+/g, "").replace(",", ".")) || 0;
-    let payment = parseFloat(paymentAmountInput.value) || 0;
-    const discount = parseFloat(discountAmountInput.value) || 0;
-    const paymentMethod = paymentMethodSelect.value;
+// NEW: Function to prepare transaction object and decrement stock
+function createTransactionObjectAndDecrementStock() {
+    const total = parseFloat(totalAmountInput.value.replace(/[^0-9,-]+/g, "").replace(",", ".")) || 0; // Final total after discount
+    let payment = parseFloat(paymentAmountInput.value.replace(/[^0-9,-]+/g, "").replace(",", ".")) || 0; // Use 'let' because it might be modified
+    const discount = parseFloat(discountAmountInput.value) || 0; // Get current discount value
+    const paymentMethod = paymentMethodSelect.value; // Get selected payment method
 
+    // If payment method is QRIS or Transfer Bank, set payment to total for direct processing
     if (paymentMethod === 'QRIS' || paymentMethod === 'Transfer Bank') {
-        payment = total;
-        paymentAmountInput.value = total.toLocaleString('id-ID');
+        payment = total; // Automatically set payment to total for these methods
+        paymentAmountInput.value = total.toLocaleString('id-ID'); // Update UI
     }
 
     if (payment < total) {
@@ -1146,38 +977,30 @@ async function createTransactionObjectAndDecrementStock() {
         return null;
     }
 
-    // Hitung profit untuk transaksi saat ini
+    // Calculate profit for the current transaction
     let transactionGrossProfit = 0;
     currentTransactionItems.forEach(item => {
         const itemTotal = item.qty * item.price;
+        // Cost is already stored in item.cost, which is calculated based on product type (registered, custom, online)
         const itemCost = item.qty * item.cost;
         transactionGrossProfit += (itemTotal - itemCost);
     });
-    const transactionNetProfit = transactionGrossProfit - discount;
+    const transactionNetProfit = transactionGrossProfit - discount; // Simple net profit for the transaction
 
-    // Dekrement stok untuk semua produk (hanya produk terdaftar)
-    // Perbarui stok di array lokal products, lalu simpan ke Firestore
-    for (const item of currentTransactionItems) {
-        if (!item.productId.startsWith('custom-')) {
+    // Decrement stock for all products (registered only)
+    currentTransactionItems.forEach(item => {
+        if (!item.isCustom && !item.isOnlineShop) { // Only decrement stock for registered products
             const product = products.find(p => p.id === item.productId);
             if (product && product.stock !== undefined) {
                 product.stock -= item.qty;
-                if (product.stock < 0) product.stock = 0;
-                // Langsung update di Firestore untuk produk ini
-                try {
-                    await window.setDoc(window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, product.id), product); // Menggunakan window.setDoc dan window.doc
-                } catch (e) {
-                    console.error("Gagal update stok produk di Firestore:", e);
-                    displayStatus(`Error: Gagal update stok untuk ${product.name}.`, "error");
-                    return null; // Batalkan transaksi jika update stok gagal
-                }
+                if (product.stock < 0) product.stock = 0; // Prevent negative stock
             }
         }
-    }
-    // Tidak perlu saveProducts() lagi karena sudah update per produk di loop
+    });
+    saveProducts(); // Save updated product stock after decrementing
 
     const transactionRecord = {
-        id: 'TRX-' + Date.now(),
+        id: 'TRX-' + Date.now(), // Unique transaction ID
         date: new Date().toISOString(),
         items: currentTransactionItems.map(item => ({...item})), // Deep copy items
         subtotalAmount: currentTransactionItems.reduce((sum, item) => sum + (item.qty * item.price), 0),
@@ -1185,57 +1008,59 @@ async function createTransactionObjectAndDecrementStock() {
         totalAmount: total,
         paymentAmount: payment,
         changeAmount: payment - total,
-        cashierEmail: loggedInUser ? loggedInUser.email : 'Unknown', // Gunakan email pengguna
-        cashierUid: currentUserId, // Simpan UID kasir
+        cashier: loggedInUser ? loggedInUser.username : 'Unknown',
         transactionNetProfit: transactionNetProfit,
-        paymentMethod: paymentMethod
+        paymentMethod: paymentMethod // Store payment method
     };
 
     return transactionRecord;
 }
 
-// Function to revert stock decrement (if print fails or transaction not committed)
-// Sekarang ini akan mengembalikan stok di Firestore
-async function revertStockDecrement(items) {
-    for (const item of items) {
-        if (!item.productId.startsWith('custom-')) {
+// NEW: Function to revert stock decrement (if print fails or transaction not committed)
+function revertStockDecrement(items) {
+    items.forEach(item => {
+        if (!item.isCustom && !item.isOnlineShop) { // Only revert stock for registered products
             const product = products.find(p => p.id === item.productId);
             if (product && product.stock !== undefined) {
-                product.stock += item.qty;
-                try {
-                    await window.setDoc(window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, product.id), product); // Menggunakan window.setDoc dan window.doc
-                } catch (e) {
-                    console.error("Gagal mengembalikan stok produk di Firestore:", e);
-                    displayStatus(`Error: Gagal mengembalikan stok untuk ${product.name}.`, "error");
-                }
+                product.stock += item.qty; // Add back the original quantity
             }
         }
-    }
-    console.log("Stok berhasil dikembalikan karena transaksi tidak di-commit.");
+    });
+    saveProducts(); // Save the reverted stock
+    console.log("Stock reverted due to transaction not committed.");
 }
 
-// Function to commit transaction data (add to history, update revenue)
-// Sekarang ini akan menyimpan ke Firestore
-async function commitTransactionData(transactionRecord) {
-    const success = await saveTransactionToFirestore(transactionRecord);
-    if (!success) return; // Jika gagal disimpan ke Firestore, jangan lanjutkan
+// NEW: Function to commit transaction data (add to history, update revenue)
+function commitTransactionData(transactionRecord) {
+    transactionHistory.push(transactionRecord);
+    saveTransactionHistory();
 
-    // FIX: Update dailyRevenue dan monthlyNetProfit di store metrics global
     dailyRevenue += transactionRecord.totalAmount;
+    saveDailyRevenue();
+    updateHeaderDailyRevenue(); // Update the header display
+
     monthlyNetProfit += transactionRecord.transactionNetProfit;
-
-    // Simpan perubahan daily dan monthly revenue ke Firestore storeMetrics (global)
-    await saveStoreMetricsToFirestore();
-
-    updateHeaderDailyRevenue();
-    renderMonthlyFinancialBar();
+    saveMonthlyFinancialData();
+    renderMonthlyFinancialBar(); // Update the monthly bar
 
     displayStatus("Transaksi berhasil diproses!", "success");
-    playTransactionSuccessSound();
-    startNewTransaction();
+    playTransactionSuccessSound(); // Play transaction success sound on successful transaction
+    startNewTransaction(); // Clear and start new transaction
 }
 
-// Function to generate and send receipt content to printer
+// Helper function to send data in chunks to the printer
+async function sendDataToPrinter(data) {
+    const encoder = new TextEncoder();
+    const encodedData = encoder.encode(data);
+    const chunkSize = 500; // Keep chunks below 512 bytes
+    for (let i = 0; i < encodedData.length; i += chunkSize) {
+        const chunk = encodedData.slice(i, i + chunkSize);
+        await printerCharacteristic.writeValue(chunk);
+        await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between chunks
+    }
+}
+
+// NEW: Function to generate and send receipt content to printer
 async function printReceiptContent(transactionRecord) {
     if (!bluetoothPrinterDevice || !printerCharacteristic) {
         displayStatus("Printer belum terhubung. Silakan sambungkan printer melalui Pengaturan Printer.", "error");
@@ -1249,9 +1074,10 @@ async function printReceiptContent(transactionRecord) {
     const companyAddress = "cilebut-bogor";
     const companyPhone = "0851-7210-7731";
 
+    // Use the provided transactionRecord for printing
     const transactionNumber = transactionRecord.id;
-    const cashier = transactionRecord.cashierEmail; // Gunakan email kasir
-    const paymentMethod = transactionRecord.paymentMethod;
+    const cashier = transactionRecord.cashier;
+    const paymentMethod = transactionRecord.paymentMethod; // Use actual payment method
 
     const total = transactionRecord.totalAmount;
     const payment = transactionRecord.paymentAmount;
@@ -1259,7 +1085,7 @@ async function printReceiptContent(transactionRecord) {
     const discount = transactionRecord.discountAmount;
     const subtotalBeforeDiscount = transactionRecord.subtotalAmount;
 
-    const now = new Date(transactionRecord.date);
+    const now = new Date(transactionRecord.date); // Use transaction date for receipt
     const dateTimeFormatted = now.toLocaleString('id-ID', {
         year: 'numeric', month: '2-digit', day: '2-digit',
         hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -1274,23 +1100,27 @@ async function printReceiptContent(transactionRecord) {
         printText += centerText(companyName.toUpperCase()) + "\n";
         printText += centerText(companyAddress) + "\n";
         printText += centerText(companyPhone) + "\n";
-        printText += "\n";
+        printText += "\n"; // Line break
 
         // Transaction Info
         printText += `No.Transaksi: ${transactionNumber}\n`;
         printText += `Kasir: ${cashier}\n`;
         printText += `Waktu: ${dateTimeFormatted}\n`;
-        printText += "--------------------------------\n";
+        printText += "--------------------------------\n"; // Separator
 
         // Items
         for (let item of transactionRecord.items) {
             if (item.name && item.qty > 0) {
-                printText += `${item.name}\n`;
+                printText += `${item.name}`;
+                if (item.isOnlineShop) {
+                    printText += ` (${item.marketplace} - ${item.resi})`;
+                }
+                printText += `\n`;
                 const itemSubtotal = item.qty * item.price;
                 printText += `  ${item.qty} pcs x ${item.price.toLocaleString('id-ID')}    Rp ${itemSubtotal.toLocaleString('id-ID')}\n`;
             }
         }
-        printText += "--------------------------------\n";
+        printText += "--------------------------------\n"; // Separator
 
         // Totals and Payment
         printText += `Subtotal :     Rp ${subtotalBeforeDiscount.toLocaleString('id-ID')}\n`;
@@ -1300,42 +1130,41 @@ async function printReceiptContent(transactionRecord) {
         printText += `Total    :     Rp ${total.toLocaleString('id-ID')}\n`;
         printText += `Bayar    :     Rp ${payment.toLocaleString('id-ID')}\n`;
         printText += `Kembali  :     Rp ${change.toLocaleString('id-ID')}\n`;
-        printText += `Metode   :     ${paymentMethod}\n`;
-        printText += "\n";
-
+        printText += `Metode   :     ${paymentMethod}\n`; // Include payment method
+        printText += "\n"; // Line break
         // Footer
         printText += centerText("Terimakasih sudah berbelanja") + "\n";
         printText += centerText("UNIX FASHION") + "\n";
-        printText += "\n\n\n";
+        printText += "\n\n\n"; // Extra line breaks for cutting
 
-        await printerCharacteristic.writeValue(encoder.encode(printText));
+        await sendDataToPrinter(printText); // Use the new chunking function
         displayStatus("Struk berhasil dicetak!", "success");
-        return true;
+        return true; // Indicate print success
 
     } catch (error) {
         displayStatus(`Error saat mencetak: ${error.message}.`, "error");
         console.error("Printing error:", error);
-        return false;
+        return false; // Indicate print failure
     }
 }
 
 // Function to handle printing a NEW receipt (processes transaction, decrements stock, then prints)
 async function processAndPrintTransaction() {
-    const transactionRecord = await createTransactionObjectAndDecrementStock(); // Validate and decrement stock in Firestore
+    const transactionRecord = createTransactionObjectAndDecrementStock(); // Validate and decrement stock
     if (!transactionRecord) {
-        return;
+        return; // Validation failed, message already displayed by createTransactionObjectAndDecrementStock
     }
 
     const printSuccess = await printReceiptContent(transactionRecord);
 
     if (printSuccess) {
-        await commitTransactionData(transactionRecord); // Commit ONLY if print was successful
+        commitTransactionData(transactionRecord); // Commit ONLY if print was successful
     } else {
-        await revertStockDecrement(transactionRecord.items); // Revert stock if printing fails
+        revertStockDecrement(transactionRecord.items); // Revert stock if printing fails
     }
 }
 
-// Function to handle reprinting an existing receipt from history (does not affect stock/history)
+// NEW: Function to handle reprinting an existing receipt from history (does not affect stock/history)
 async function reprintTransactionReceipt(transactionId) {
     const transactionToReprint = transactionHistory.find(t => t.id === transactionId);
     if (!transactionToReprint) {
@@ -1347,9 +1176,81 @@ async function reprintTransactionReceipt(transactionId) {
     await printReceiptContent(transactionToReprint);
 }
 
+// NEW: Function to print daily transaction report
+async function printDailyReport(dateString) {
+    if (!bluetoothPrinterDevice || !printerCharacteristic) {
+        displayStatus("Printer belum terhubung. Silakan sambungkan printer melalui Pengaturan Printer.", "error", dailyReportPrintStatusMessage);
+        return;
+    }
+
+    if (!dateString) {
+        displayStatus("Pilih tanggal untuk mencetak laporan.", "error", dailyReportPrintStatusMessage);
+        return;
+    }
+
+    displayStatus(`Mencetak laporan transaksi untuk tanggal ${new Date(dateString).toLocaleDateString('id-ID')}...`, "info", dailyReportPrintStatusMessage);
+
+    const companyName = "UNIX FASHION";
+    const companyAddress = "cilebut-bogor";
+    const companyPhone = "0851-7210-7731";
+
+    const selectedDate = new Date(dateString);
+    selectedDate.setHours(0, 0, 0, 0); // Start of the day
+    const nextDay = new Date(selectedDate);
+    nextDay.setDate(selectedDate.getDate() + 1); // End of the day (exclusive)
+
+    const transactionsForDate = transactionHistory.filter(transaction => {
+        const transactionDate = new Date(transaction.date);
+        return transactionDate >= selectedDate && transactionDate < nextDay;
+    }).sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by oldest first for report
+
+    if (transactionsForDate.length === 0) {
+        displayStatus(`Tidak ada transaksi untuk tanggal ${new Date(dateString).toLocaleDateString('id-ID')}.`, "error", dailyReportPrintStatusMessage);
+        return;
+    }
+
+    try {
+        let printText = "";
+        let totalRevenueToday = 0;
+
+        // Header Laporan
+        printText += centerText(companyName.toUpperCase()) + "\n";
+        printText += centerText(companyAddress) + "\n";
+        printText += centerText(companyPhone) + "\n";
+        printText += "\n";
+        printText += centerText("LAPORAN TRANSAKSI HARIAN") + "\n";
+        printText += centerText(`Tanggal: ${new Date(dateString).toLocaleDateString('id-ID')}`) + "\n";
+        printText += "================================\n";
+
+        transactionsForDate.forEach(transaction => {
+            // Simplified item display as per user request
+            transaction.items.forEach(item => {
+                const itemTotal = item.qty * item.price;
+                // Format: 1x Kaos          Rp 10.000
+                printText += `${item.qty}x ${item.name.padEnd(15)} Rp ${item.price.toLocaleString('id-ID')}\n`;
+            });
+            totalRevenueToday += transaction.totalAmount; // Accumulate total revenue for the day
+        });
+
+        printText += "--------------------------------\n";
+        printText += `Total Semua: Rp ${totalRevenueToday.toLocaleString('id-ID')}\n`; // Total keseluruhan sehari
+        printText += "================================\n";
+        printText += centerText("Terimakasih sudah berbelanja") + "\n";
+        printText += centerText("UNIX FASHION") + "\n";
+        printText += "\n\n\n"; // Extra line breaks for cutting
+
+        await sendDataToPrinter(printText); // Use the new chunking function
+        displayStatus("Laporan harian berhasil dicetak!", "success", dailyReportPrintStatusMessage);
+
+    } catch (error) {
+        displayStatus(`Error saat mencetak laporan: ${error.message}.`, "error", dailyReportPrintStatusMessage);
+        console.error("Daily report printing error:", error);
+    }
+}
+
 
 // Helper function to center text for receipt printing
-function centerText(text, width = 32) {
+function centerText(text, width = 32) { // Assuming 32 characters per line for 58mm printer
     const padding = Math.max(0, width - text.length);
     const leftPadding = Math.floor(padding / 2);
     const rightPadding = padding - leftPadding;
@@ -1362,10 +1263,11 @@ function centerText(text, width = 32) {
 // Renders the list of products in the store products modal, with optional search filter.
 function renderStoreProducts(searchTerm = '') {
     if (!storeProductsTableBody) return;
-    storeProductsTableBody.innerHTML = '';
+    storeProductsTableBody.innerHTML = ''; // Clear existing rows
 
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
 
+    // Filter products based on search term
     const filteredProducts = products.filter(product => {
         const productName = product.name ? product.name.toLowerCase() : '';
         const productId = product.id ? product.id.toLowerCase() : '';
@@ -1397,7 +1299,7 @@ function renderStoreProducts(searchTerm = '') {
             <td class="py-2 px-4 border-b ${borderColor} ${textClass}">${product.id}</td>
             <td class="py-2 px-4 border-b ${borderColor} ${textClass}">${product.name}</td>
             <td class="py-2 px-4 border-b ${borderColor} text-right ${textClass}">Rp ${product.price.toLocaleString('id-ID')}</td>
-            <td class="py-2 px-4 border-b ${borderColor} text-right ${textClass}">${product.stock !== undefined ? product.stock : 'N/A'}</td>
+            <td class="py-2 px-4 border-b ${borderColor} text-right ${textClass}">${product.stock !== undefined ? product.stock : 'N/A'}</td> <!-- Display stock -->
             <td class="py-2 px-4 border-b ${borderColor} text-center">
                 <button class="edit-product-btn text-blue-500 hover:text-blue-700 mr-2" data-product-id="${product.id}" title="Edit Produk">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block" viewBox="0 0 20 20" fill="currentColor">
@@ -1413,8 +1315,7 @@ function renderStoreProducts(searchTerm = '') {
         `;
         storeProductsTableBody.appendChild(row);
     });
-    // saveProductsToFirestore() tidak dipanggil di sini karena perubahan dipicu oleh `onSnapshot`
-    // atau oleh fungsi edit/delete/addProduct.
+    saveProducts(); // Save products whenever the store view is updated
 }
 
 // Opens the edit form with product data.
@@ -1423,19 +1324,19 @@ function editProduct(productId) {
     if (product) {
         editProductIdInput.value = product.id;
         editProductNameInput.value = product.name;
-        editProductCostInput.value = product.cost !== undefined ? product.cost : 0;
+        editProductCostInput.value = product.cost !== undefined ? product.cost : 0; // Populate cost
         editProductPriceInput.value = product.price;
-        editProductStockInput.value = product.stock !== undefined ? product.stock : 0;
-        editProductForm.classList.remove('hidden');
-        storeProductsTableContainer.classList.add('hidden');
-        searchStoreProductsInput.classList.add('hidden');
+        editProductStockInput.value = product.stock !== undefined ? product.stock : 0; // Populate stock
+        editProductForm.classList.remove('hidden'); // Show the form
+        storeProductsTableContainer.classList.add('hidden'); // Hide the product list
+        searchStoreProductsInput.classList.add('hidden'); // Hide search input
     } else {
         console.error("Produk tidak ditemukan untuk diedit:", productId);
     }
 }
 
-// Saves changes from the edit form to Firestore.
-async function saveProductEdit() {
+// Saves changes from the edit form.
+function saveProductEdit() {
     const id = editProductIdInput.value;
     const name = editProductNameInput.value.trim();
     const cost = parseFloat(editProductCostInput.value);
@@ -1447,43 +1348,31 @@ async function saveProductEdit() {
         return;
     }
 
-    try {
-        const productRef = window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, id); // Menggunakan window.doc
-        await window.updateDoc(productRef, { // Menggunakan window.updateDoc
-            name: name,
-            cost: cost,
-            price: price,
-            stock: stock
-        });
+    const productIndex = products.findIndex(p => p.id === id);
+    if (productIndex > -1) {
+        products[productIndex].name = name;
+        products[productIndex].cost = cost; // Save cost
+        products[productIndex].price = price;
+        products[productIndex].stock = stock; // Save stock
+        saveProducts(); // Save changes to localStorage immediately after updating the array
+        renderStoreProducts(searchStoreProductsInput.value); // Re-render the list with current search term
+        editProductForm.classList.add('hidden'); // Hide the form
+        storeProductsTableContainer.classList.remove('hidden'); // Show the product list
+        searchStoreProductsInput.classList.remove('hidden'); // Show search input
         displayStatus("Produk berhasil diperbarui!", "success");
-        editProductForm.classList.add('hidden');
-        storeProductsTableContainer.classList.remove('hidden');
-        searchStoreProductsInput.classList.remove('hidden');
-        // onSnapshot akan memicu renderStoreProducts
-    } catch (e) {
-        console.error("Gagal menyimpan perubahan produk ke Firestore:", e);
-        displayStatus("Error: Gagal menyimpan produk. Periksa koneksi internet atau hak akses.", "error");
+    } else {
+        console.error("Produk tidak ditemukan saat menyimpan:", id);
     }
 }
 
-// Deletes a product from Firestore.
+// Deletes a product from the list.
 async function deleteProduct(productId) {
-    // Hanya admin yang bisa menghapus produk
-    if (loggedInUser && loggedInUser.role !== 'admin') {
-        displayStatus("Akses Ditolak: Hanya admin yang dapat menghapus produk.", "error");
-        return;
-    }
-
     const confirmed = await confirmAction("Apakah Anda yakin ingin menghapus produk ini?");
     if (confirmed) {
-        try {
-            await window.deleteDoc(window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, productId)); // Menggunakan window.deleteDoc dan window.doc
-            displayStatus("Produk berhasil dihapus!", "success");
-            // onSnapshot akan memicu renderStoreProducts
-        } catch (e) {
-            console.error("Gagal menghapus produk dari Firestore:", e);
-            displayStatus("Error: Gagal menghapus produk. Periksa koneksi internet atau hak akses.", "error");
-        }
+        products = products.filter(p => p.id !== productId);
+        renderStoreProducts(searchStoreProductsInput.value); // Re-render the list with current search term
+        displayStatus("Produk berhasil dihapus!", "success");
+        saveProducts(); // Save changes to localStorage
     }
 }
 
@@ -1499,11 +1388,11 @@ function confirmAction(message) {
 // Closes the store products modal.
 function closeStoreProductsModal() {
     storeProductsModal.classList.add('hidden');
-    editProductForm.classList.add('hidden');
-    searchStoreProductsInput.value = '';
-    storeProductsTableContainer.classList.remove('hidden');
-    searchStoreProductsInput.classList.remove('hidden');
-    displayStatus("", "");
+    editProductForm.classList.add('hidden'); // Hide edit form when closing modal
+    searchStoreProductsInput.value = ''; // Clear search input
+    storeProductsTableContainer.classList.remove('hidden'); // Ensure product list is visible when modal is closed
+    searchStoreProductsInput.classList.remove('hidden'); // Ensure search input is visible
+    displayStatus("", ""); // Clear status message
 }
 
 // --- Add New Product Functions ---
@@ -1516,70 +1405,53 @@ function calculateProfit() {
     if (profit < 0) {
         addProductProfitInput.style.color = 'red';
     } else {
-        addProductProfitInput.style.color = '';
+        addProductProfitInput.style.color = ''; // Reset to default
     }
 }
 
-// Adds a new product to Firestore.
-async function addNewProduct() {
-    // Hanya admin yang bisa menambah produk baru
-    if (loggedInUser && loggedInUser.role !== 'admin') {
-        displayStatus("Akses Ditolak: Hanya admin yang dapat menambah produk baru.", "error");
-        return;
-    }
-
+// Adds a new product to the `products` array.
+function addNewProduct() {
     const id = addProductCodeInput.value.trim();
     const name = addProductNameInput.value.trim();
     const cost = parseFloat(addProductCostInput.value);
     const price = parseFloat(addProductPriceInput.value);
-    const stock = parseInt(addProductStockInput.value);
+    const stock = parseInt(addProductStockInput.value); // Get stock value
 
     if (!id || !name || isNaN(cost) || cost < 0 || isNaN(price) || price < 0 || isNaN(stock) || stock < 0) {
         displayStatus("Error: Pastikan semua kolom wajib diisi dengan nilai yang valid!", "error");
         return;
     }
 
-    // Cek duplikasi ID produk di array lokal (yang sudah disinkronkan dari Firestore)
+    // Check for duplicate product ID
     if (products.some(p => p.id.toLowerCase() === id.toLowerCase())) {
         displayStatus("Error: Kode Barang sudah ada. Gunakan kode lain atau edit produk yang sudah ada.", "error");
         return;
     }
 
-    const newProduct = { id: id, name: name, price: price, cost: cost, stock: stock };
+    products.push({ id: id, name: name, price: price, cost: cost, stock: stock }); // Add cost and stock
 
-    try {
-        await window.setDoc(window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, id), newProduct); // Menggunakan window.setDoc dan window.doc
-        // Clear form
-        addProductCodeInput.value = '';
-        addProductNameInput.value = '';
-        addProductCostInput.value = '0';
-        addProductPriceInput.value = '0';
-        addProductStockInput.value = '0';
-        calculateProfit(); // Reset profit display
+    // Clear form
+    addProductCodeInput.value = '';
+    addProductNameInput.value = '';
+    addProductCostInput.value = '0';
+    addProductPriceInput.value = '0';
+    addProductStockInput.value = '0'; // Clear stock input
+    calculateProfit(); // Reset profit display
 
-        closeAddProductModal();
-        displayStatus("Produk baru berhasil ditambahkan!", "success");
-        // onSnapshot akan memicu renderProductDatalist dan renderStoreProducts
-    } catch (e) {
-        console.error("Gagal menambah produk baru ke Firestore:", e);
-        displayStatus("Error: Gagal menambah produk. Periksa koneksi internet atau hak akses.", "error");
-    }
+    closeAddProductModal(); // Close the modal
+    displayStatus("Produk baru berhasil ditambahkan!", "success");
+    saveProducts(); // Save changes to localStorage immediately after updating the array
 }
 
 // Closes the add product modal.
 function closeAddProductModal() {
     addProductModal.classList.add('hidden');
-    displayStatus("", "");
+    displayStatus("", ""); // Clear status message
 }
 
-// --- Expenses Functions ---
-// Adds a new expense to Firestore.
-async function addExpense() {
-    if (!db || !currentUserId) {
-        displayStatus("Error: Tidak dapat menambah pengeluaran, pengguna belum login.", "error", expenseStatusMessage);
-        return;
-    }
-
+// --- Expenses Functions (New) ---
+// Adds a new expense.
+function addExpense() {
     const date = expenseDateInput.value;
     const description = expenseDescriptionInput.value.trim();
     const amount = parseFloat(expenseAmountInput.value);
@@ -1589,31 +1461,24 @@ async function addExpense() {
         return;
     }
 
-    const newExpense = { id: 'EXP-' + Date.now(), date: date, description: description, amount: amount, cashierEmail: loggedInUser ? loggedInUser.email : 'Unknown', cashierUid: currentUserId };
-
-    try {
-        // FIX: Simpan ke koleksi pengeluaran publik
-        await window.setDoc(window.doc(db, PUBLIC_EXPENSES_COLLECTION_PATH, newExpense.id), newExpense);
-        displayStatus("Pengeluaran berhasil ditambahkan!", "success", expenseStatusMessage);
-        // FIX: Update monthly expenses di store metrics global
-        monthlyExpenses += amount;
-        await saveStoreMetricsToFirestore();
-        renderMonthlyFinancialBar();
-        // Clear form
-        expenseDateInput.value = new Date().toISOString().slice(0, 10);
-        expenseDescriptionInput.value = '';
-        expenseAmountInput.value = '0';
-        // onSnapshot akan memicu renderExpenses
-    } catch (e) {
-        console.error("Gagal menambah pengeluaran ke Firestore:", e);
-        displayStatus("Error: Gagal menambah pengeluaran. Periksa koneksi internet atau hak akses.", "error", expenseStatusMessage);
-    }
+    expenses.push({ id: 'EXP-' + Date.now(), date: date, description: description, amount: amount });
+    saveExpenses();
+    renderExpenses(); // Re-render with new expense
+    displayStatus("Pengeluaran berhasil ditambahkan!", "success", expenseStatusMessage);
+    // Update monthly expenses and save
+    monthlyExpenses += amount;
+    saveMonthlyFinancialData();
+    renderMonthlyFinancialBar(); // Update the monthly bar
+    // Clear form
+    expenseDateInput.value = new Date().toISOString().slice(0, 10);
+    expenseDescriptionInput.value = '';
+    expenseAmountInput.value = '0';
 }
 
 // Renders the list of expenses with search and date filters.
 function renderExpenses() {
     if (!expensesListBody || !totalExpensesDisplayModal) return;
-    expensesListBody.innerHTML = '';
+    expensesListBody.innerHTML = ''; // Clear existing rows
 
     const searchTerm = expenseSearchInput.value.toLowerCase();
     const startDateStr = expenseFilterStartDate.value;
@@ -1624,8 +1489,7 @@ function renderExpenses() {
     // Apply search filter
     if (searchTerm) {
         filteredExpenses = filteredExpenses.filter(expense =>
-            expense.description.toLowerCase().includes(searchTerm) ||
-            (expense.cashierEmail && expense.cashierEmail.toLowerCase().includes(searchTerm))
+            expense.description.toLowerCase().includes(searchTerm)
         );
     }
 
@@ -1676,7 +1540,6 @@ function renderExpenses() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${textClass} ${borderColor}">${expenseDate}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${textClass} ${borderColor}">${expense.description}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${textClass} text-right ${borderColor}">Rp ${expense.amount.toLocaleString('id-ID')}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm ${textClass} ${borderColor}">${expense.cashierEmail || 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium ${borderColor}">
                     <button class="delete-expense-btn text-red-600 hover:text-red-900" data-expense-id="${expense.id}" title="Hapus Pengeluaran">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1686,47 +1549,32 @@ function renderExpenses() {
                 </td>
             `;
             expensesListBody.appendChild(row);
-            totalFilteredExpenses += expense.amount;
+            totalFilteredExpenses += expense.amount; // Accumulate total
         });
     }
     totalExpensesDisplayModal.textContent = `Rp ${totalFilteredExpenses.toLocaleString('id-ID')}`;
 }
 
-// Deletes an expense from Firestore.
+// Deletes an expense.
 async function deleteExpense(expenseId) {
-    if (!db || !currentUserId) {
-        displayStatus("Error: Tidak dapat menghapus pengeluaran, pengguna belum login.", "error", expenseStatusMessage);
-        return;
-    }
-    // Hanya admin yang bisa menghapus pengeluaran
-    if (loggedInUser && loggedInUser.role !== 'admin') {
-        displayStatus("Akses Ditolak: Hanya admin yang dapat menghapus pengeluaran.", "error");
-        return;
-    }
-
-
     const confirmed = await confirmAction("Apakah Anda yakin ingin menghapus pengeluaran ini?");
     if (confirmed) {
-        try {
-            const deletedExpense = expenses.find(e => e.id === expenseId);
-            // FIX: Hapus dari koleksi pengeluaran publik
-            await window.deleteDoc(window.doc(db, PUBLIC_EXPENSES_COLLECTION_PATH, expenseId));
-            displayStatus("Pengeluaran berhasil dihapus!", "success", expenseStatusMessage);
+        const deletedExpense = expenses.find(e => e.id === expenseId);
+        expenses = expenses.filter(e => e.id !== expenseId);
+        saveExpenses();
+        renderExpenses(); // Re-render with new expense
+        displayStatus("Pengeluaran berhasil ditambahkan!", "success", expenseStatusMessage);
 
-            // Perbarui monthly expenses jika pengeluaran yang dihapus berasal dari bulan ini
-            const thisMonth = new Date().toISOString().slice(0, 7);
-            const expenseMonth = new Date(deletedExpense.date).toISOString().slice(0, 7);
-            if (expenseMonth === thisMonth) {
-                monthlyExpenses -= deletedExpense.amount;
-                if (monthlyExpenses < 0) monthlyExpenses = 0;
-                // FIX: Simpan ke store metrics global
-                await saveStoreMetricsToFirestore();
-                renderMonthlyFinancialBar();
-            }
-        } catch (e) {
-            console.error("Gagal menghapus pengeluaran dari Firestore:", e);
-            displayStatus("Error: Gagal menghapus pengeluaran. Periksa koneksi internet atau hak akses.", "error", expenseStatusMessage);
+        // Update monthly expenses if the deleted expense was from the current month
+        const thisMonth = new Date().toISOString().slice(0, 7);
+        const expenseMonth = new Date(deletedExpense.date).toISOString().slice(0, 7);
+        if (expenseMonth === thisMonth) {
+            monthlyExpenses -= deletedExpense.amount;
+            if (monthlyExpenses < 0) monthlyExpenses = 0;
+            saveMonthlyFinancialData();
+            renderMonthlyFinancialBar(); // Update the monthly bar
         }
+        displayStatus("Pengeluaran berhasil dihapus!", "success", expenseStatusMessage);
     } else {
         displayStatus("Penghapusan pengeluaran dibatalkan.", "info", expenseStatusMessage);
     }
@@ -1735,32 +1583,127 @@ async function deleteExpense(expenseId) {
 // Closes the expenses modal.
 function closeExpensesModal() {
     expensesModal.classList.add('hidden');
-    displayStatus("", "", expenseStatusMessage);
-    displayStatus("", "");
-    expenseSearchInput.value = '';
-    expenseFilterStartDate.value = '';
-    expenseFilterEndDate.value = '';
+    displayStatus("", "", expenseStatusMessage); // Clear status message inside modal
+    displayStatus("", ""); // Clear main status message
+    expenseSearchInput.value = ''; // Clear search input on close
+    expenseFilterStartDate.value = ''; // Clear date filters on close
+    expenseFilterEndDate.value = ''; // Clear date filters on close
 }
 
-// --- Financial Report Functions ---
-function calculateFinancialReport() {
-    const startDateStr = reportStartDateInput.value;
-    const endDateStr = reportEndDateInput.value;
-    // FIX: Filter dari data transaksi dan pengeluaran publik
-    let filteredTransactions = transactionHistory;
+// NEW: Function to export expenses data to an XLS file
+function exportExpensesToXLS() {
+    const searchTerm = expenseSearchInput.value.toLowerCase();
+    const startDateStr = expenseFilterStartDate.value;
+    const endDateStr = expenseFilterEndDate.value;
+
     let filteredExpenses = expenses;
 
+    // Apply search filter
+    if (searchTerm) {
+        filteredExpenses = filteredExpenses.filter(expense =>
+            expense.description.toLowerCase().includes(searchTerm)
+        );
+    }
+
+    // Apply date filter
     if (startDateStr && endDateStr) {
         const startDate = new Date(startDateStr);
         startDate.setHours(0, 0, 0, 0);
         const endDate = new Date(endDateStr);
         endDate.setHours(23, 59, 59, 999);
 
+        filteredExpenses = filteredExpenses.filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate >= startDate && expenseDate <= endDate;
+        });
+    } else if (startDateStr) {
+        const startDate = new Date(startDateStr);
+        startDate.setHours(0, 0, 0, 0);
+        filteredExpenses = filteredExpenses.filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate >= startDate;
+        });
+    } else if (endDateStr) {
+        const endDate = new Date(endDateStr);
+        endDate.setHours(23, 59, 59, 999);
+        filteredExpenses = filteredExpenses.filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate <= endDate;
+        });
+    }
+
+    if (filteredExpenses.length === 0) {
+        displayStatus("Tidak ada data pengeluaran untuk diekspor dalam rentang tanggal ini.", "error", expenseStatusMessage);
+        return;
+    }
+
+    const reportData = [];
+
+    // Header for the report
+    reportData.push(["Laporan Pengeluaran"]);
+    if (startDateStr && endDateStr) {
+        reportData.push([`Periode: ${new Date(startDateStr).toLocaleDateString('id-ID')} - ${new Date(endDateStr).toLocaleDateString('id-ID')}`]);
+    } else if (startDateStr) {
+        reportData.push([`Dari Tanggal: ${new Date(startDateStr).toLocaleDateString('id-ID')}`]);
+    } else if (endDateStr) {
+        reportData.push([`Sampai Tanggal: ${new Date(endDateStr).toLocaleDateString('id-ID')}`]);
+    } else {
+        reportData.push(["Periode: Semua Data"]);
+    }
+    reportData.push([]); // Empty row for spacing
+
+    // Expenses Detail
+    reportData.push(["Detail Pengeluaran"]);
+    reportData.push(["Tanggal", "Deskripsi", "Jumlah"]);
+    let totalExportedExpenses = 0;
+    filteredExpenses.forEach(expense => {
+        const expenseDate = new Date(expense.date).toLocaleDateString('id-ID');
+        reportData.push([
+            expenseDate,
+            expense.description,
+            expense.amount
+        ]);
+        totalExportedExpenses += expense.amount;
+    });
+    reportData.push([]); // Empty row for spacing
+    reportData.push(["Total Pengeluaran", totalExportedExpenses]);
+
+    // Create a new workbook and add a worksheet
+    const ws = XLSX.utils.aoa_to_sheet(reportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan Pengeluaran");
+
+    // Generate file name
+    const fileName = `Laporan_Pengeluaran_${startDateStr || 'All'}_${endDateStr || 'Data'}.xlsx`;
+
+    // Write and download the file
+    try {
+        XLSX.writeFile(wb, fileName);
+        displayStatus("Laporan pengeluaran berhasil diekspor ke Excel!", "success", expenseStatusMessage);
+    } catch (e) {
+        console.error("Error exporting expenses to XLS:", e);
+        displayStatus("Gagal mengekspor laporan pengeluaran. Pastikan browser Anda mendukung fitur ini.", "error", expenseStatusMessage);
+    }
+}
+
+// --- Financial Report Functions ---
+function calculateFinancialReport() {
+    const startDateStr = reportStartDateInput.value;
+    const endDateStr = reportEndDateInput.value;
+    let filteredTransactions = transactionHistory;
+    let filteredExpenses = expenses; // Use new expenses array
+
+    if (startDateStr && endDateStr) {
+        const startDate = new Date(startDateStr);
+        startDate.setHours(0, 0, 0, 0); // Start of the day
+        const endDate = new Date(endDateStr);
+        endDate.setHours(23, 59, 59, 999); // End of the day
+
         filteredTransactions = transactionHistory.filter(transaction => {
             const transactionDate = new Date(transaction.date);
             return transactionDate >= startDate && transactionDate <= endDate;
         });
-        filteredExpenses = expenses.filter(expense => {
+        filteredExpenses = expenses.filter(expense => { // Filter expenses by date
             const expenseDate = new Date(expense.date);
             return expenseDate >= startDate && expenseDate <= endDate;
         });
@@ -1772,7 +1715,7 @@ function calculateFinancialReport() {
             const transactionDate = new Date(transaction.date);
             return transactionDate >= startDate;
         });
-        filteredExpenses = expenses.filter(expense => {
+        filteredExpenses = expenses.filter(expense => { // Filter expenses by date
             const expenseDate = new Date(expense.date);
             return expenseDate >= startDate;
         });
@@ -1783,36 +1726,44 @@ function calculateFinancialReport() {
             const transactionDate = new Date(transaction.date);
             return transactionDate <= endDate;
         });
-        filteredExpenses = filteredExpenses.filter(expense => {
+        filteredExpenses = expenses.filter(expense => { // Filter expenses by date
             const expenseDate = new Date(expense.date);
             return expenseDate <= endDate;
         });
     }
 
     let totalRevenue = 0;
-    let totalCostOfGoodsSold = 0;
-    let totalExpensesSum = 0; // Menggunakan nama yang berbeda untuk menghindari konflik dengan variabel global
+    let totalCostOfGoodsSold = 0; // COGS
+    let totalExpenses = 0;
 
     filteredTransactions.forEach(transaction => {
-        totalRevenue += transaction.totalAmount;
+        totalRevenue += transaction.totalAmount; // This total is already after discount
         transaction.items.forEach(item => {
+            // Calculate cost of goods sold based on product type
+            // For registered products, cost is `item.cost` (from product's cost field)
+            // For custom products, cost is 80% of `item.price` (as per 20% margin rule)
+            // For online shop products, cost is 75% of `item.price` (as per 25% margin rule)
             if (item.isCustom) {
                 totalCostOfGoodsSold += (item.price * 0.8) * item.qty;
-            } else {
+            } else if (item.isOnlineShop) {
+                totalCostOfGoodsSold += (item.price * 0.75) * item.qty;
+            }
+            else {
                 totalCostOfGoodsSold += item.cost * item.qty;
             }
         });
     });
 
+    // Calculate total expenses from the filtered list
     filteredExpenses.forEach(expense => {
-        totalExpensesSum += expense.amount;
+        totalExpenses += expense.amount;
     });
 
     const grossProfit = totalRevenue - totalCostOfGoodsSold;
-    const netProfit = grossProfit - totalExpensesSum;
+    const netProfit = grossProfit - totalExpenses; // Net profit now accounts for expenses
 
     totalRevenueDisplay.textContent = `Rp ${totalRevenue.toLocaleString('id-ID')}`;
-    totalExpensesDisplay.textContent = `Rp ${totalExpensesSum.toLocaleString('id-ID')}`;
+    totalExpensesDisplay.textContent = `Rp ${totalExpenses.toLocaleString('id-ID')}`;
     grossProfitDisplay.textContent = `Rp ${grossProfit.toLocaleString('id-ID')}`;
     netProfitDisplay.textContent = `Rp ${netProfit.toLocaleString('id-ID')}`;
 
@@ -1826,7 +1777,8 @@ function calculateFinancialReport() {
         }
     }
 
-    const chartData = [totalRevenue, totalExpensesSum, grossProfit, netProfit];
+    // Prepare data for chart
+    const chartData = [totalRevenue, totalExpenses, grossProfit, netProfit];
     renderFinancialReportChart(chartData);
 }
 
@@ -1837,8 +1789,9 @@ function renderFinancialReportChart(data) {
         window.myFinancialChart.destroy();
     }
 
-    const textColor = isDarkMode ? '#e2e8f0' : '#1a202c';
-    const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+    // Define colors based on dark mode state
+    const textColor = isDarkMode ? '#e2e8f0' : '#1a202c'; // Light text for dark mode, dark for light
+    const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'; // Light grid for dark mode
 
     window.myFinancialChart = new Chart(ctx, {
         type: 'bar',
@@ -1872,25 +1825,25 @@ function renderFinancialReportChart(data) {
                 title: {
                     display: true,
                     text: 'Ringkasan Keuangan',
-                    color: textColor
+                    color: textColor // Apply text color to title
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
                     ticks: {
-                        color: textColor
+                        color: textColor // Apply text color to y-axis ticks
                     },
                     grid: {
-                        color: gridColor
+                        color: gridColor // Apply grid color
                     }
                 },
                 x: {
                     ticks: {
-                        color: textColor
+                        color: textColor // Apply text color to x-axis ticks
                     },
                     grid: {
-                        color: gridColor
+                        color: gridColor // Apply grid color
                     }
                 }
             }
@@ -1898,12 +1851,185 @@ function renderFinancialReportChart(data) {
     });
 }
 
-// --- Data Import/Export Functions (Hanya lokal, belum terintegrasi penuh dengan Firestore) ---
-// Note: Fungsi ekspor/impor ini masih akan bekerja dengan data lokal `products`, `transactionHistory`, dll.
-// Untuk ekspor/impor langsung dari/ke Firestore, akan butuh implementasi yang lebih kompleks
-// melibatkan data dumping/restoring dari database. Untuk saat ini, fungsi ini masih akan
-// mengekspor/impor data lokal yang sudah disinkronkan dari Firestore.
+// Function to export financial report data to an XLS file
+function exportFinancialReportToXLS() {
+    const startDateStr = reportStartDateInput.value;
+    const endDateStr = reportEndDateInput.value;
 
+    let filteredTransactions = transactionHistory;
+    let filteredExpenses = expenses;
+
+    if (startDateStr && endDateStr) {
+        const startDate = new Date(startDateStr);
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(endDateStr);
+        endDate.setHours(23, 59, 59, 999);
+
+        filteredTransactions = transactionHistory.filter(transaction => {
+            const transactionDate = new Date(transaction.date);
+            return transactionDate >= startDate && transactionDate <= endDate;
+        });
+        filteredExpenses = expenses.filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate >= startDate && expenseDate <= endDate;
+        });
+    } else if (startDateStr) {
+        const startDate = new Date(startDateStr);
+        startDate.setHours(0, 0, 0, 0);
+        filteredTransactions = transactionHistory.filter(transaction => {
+            const transactionDate = new Date(transaction.date);
+            return transactionDate >= startDate;
+        });
+        filteredExpenses = expenses.filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate >= startDate;
+        });
+    } else if (endDateStr) {
+        const endDate = new Date(endDateStr);
+        endDate.setHours(23, 59, 59, 999);
+        filteredTransactions = filteredTransactions.filter(transaction => {
+            const transactionDate = new Date(transaction.date);
+            return transactionDate <= endDate;
+        });
+        filteredExpenses = expenses.filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate <= endDate;
+        });
+    }
+
+    if (filteredTransactions.length === 0 && filteredExpenses.length === 0) {
+        displayStatus("Tidak ada data transaksi atau pengeluaran untuk diekspor dalam rentang tanggal ini.", "error", financialReportMessageBox);
+        return;
+    }
+
+    const reportData = [];
+
+    // Header for the report
+    reportData.push(["Laporan Keuangan"]);
+    if (startDateStr && endDateStr) {
+        reportData.push([`Periode: ${new Date(startDateStr).toLocaleDateString('id-ID')} - ${new Date(endDateStr).toLocaleDateString('id-ID')}`]);
+    } else if (startDateStr) {
+        reportData.push([`Dari Tanggal: ${new Date(startDateStr).toLocaleDateString('id-ID')}`]);
+    } else if (endDateStr) {
+        reportData.push([`Sampai Tanggal: ${new Date(endDateStr).toLocaleDateString('id-ID')}`]);
+    } else {
+        reportData.push(["Periode: Semua Data"]);
+    }
+    reportData.push([]); // Empty row for spacing
+
+    // Summary Section
+    let totalRevenue = 0;
+    let totalCostOfGoodsSold = 0;
+    let totalExpenses = 0;
+
+    filteredTransactions.forEach(transaction => {
+        totalRevenue += transaction.totalAmount; // This total is already after discount
+        transaction.items.forEach(item => {
+            // Calculate cost of goods sold based on product type
+            // For registered products, cost is `item.cost` (from product's cost field)
+            // For custom products, cost is 80% of `item.price` (as per 20% margin rule)
+            // For online shop products, cost is 75% of `item.price` (as per 25% margin rule)
+            if (item.isCustom) {
+                totalCostOfGoodsSold += (item.price * 0.8) * item.qty;
+            } else if (item.isOnlineShop) {
+                totalCostOfGoodsSold += (item.price * 0.75) * item.qty;
+            }
+            else {
+                totalCostOfGoodsSold += item.cost * item.qty;
+            }
+        });
+    });
+
+    filteredExpenses.forEach(expense => {
+        totalExpenses += expense.amount;
+    });
+
+    const grossProfit = totalRevenue - totalCostOfGoodsSold;
+    const netProfit = grossProfit - totalExpenses;
+
+    reportData.push(["Ringkasan Keuangan"]);
+    reportData.push(["Pendapatan", totalRevenue]);
+    reportData.push(["Pengeluaran", totalExpenses]);
+    reportData.push(["Laba Kotor", grossProfit]);
+    reportData.push(["Laba Bersih", netProfit]);
+    reportData.push([]); // Empty row for spacing
+
+    // Transactions Detail
+    if (filteredTransactions.length > 0) {
+        reportData.push(["Detail Transaksi"]);
+        reportData.push(["ID Transaksi", "Tanggal", "Kasir", "Subtotal", "Diskon", "Total Pembayaran", "Jumlah Dibayar", "Kembali", "Metode Pembayaran", "Laba Bersih Transaksi"]);
+        filteredTransactions.forEach(transaction => {
+            const transactionDate = new Date(transaction.date).toLocaleString('id-ID', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+            reportData.push([
+                transaction.id,
+                transactionDate,
+                transaction.cashier || 'N/A',
+                transaction.subtotalAmount,
+                transaction.discountAmount,
+                transaction.totalAmount,
+                transaction.paymentAmount,
+                transaction.changeAmount,
+                transaction.paymentMethod,
+                transaction.transactionNetProfit
+            ]);
+            // Add transaction items as sub-rows
+            if (transaction.items && transaction.items.length > 0) {
+                reportData.push(["", "", "", "Detail Item:"]);
+                reportData.push(["", "", "", "Produk", "Qty", "Harga Satuan", "Total Item", "Marketplace", "Nomor Resi"]); // Added marketplace and resi
+                transaction.items.forEach(item => {
+                    reportData.push([
+                        "", "", "",
+                        item.name,
+                        item.qty,
+                        item.price,
+                        item.qty * item.price,
+                        item.marketplace || '', // Add marketplace
+                        item.resi || '' // Add resi
+                    ]);
+                });
+            }
+        });
+        reportData.push([]); // Empty row for spacing
+    }
+
+    // Expenses Detail
+    if (filteredExpenses.length > 0) {
+        reportData.push(["Detail Pengeluaran"]);
+        reportData.push(["Tanggal", "Deskripsi", "Jumlah"]);
+        filteredExpenses.forEach(expense => {
+            const expenseDate = new Date(expense.date).toLocaleDateString('id-ID');
+            reportData.push([
+                expenseDate,
+                expense.description,
+                expense.amount
+            ]);
+        });
+        reportData.push([]); // Empty row for spacing
+    }
+
+    // Create a new workbook and add a worksheet
+    const ws = XLSX.utils.aoa_to_sheet(reportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan Keuangan");
+
+    // Generate file name
+    const fileName = `Laporan_Keuangan_${startDateStr || 'All'}_${endDateStr || 'Data'}.xlsx`;
+
+    // Write and download the file
+    try {
+        XLSX.writeFile(wb, fileName);
+        displayStatus("Laporan keuangan berhasil diekspor ke Excel!", "success", financialReportMessageBox);
+    } catch (e) {
+        console.error("Error exporting to XLS:", e);
+        displayStatus("Gagal mengekspor laporan keuangan. Pastikan browser Anda mendukung fitur ini.", "error", financialReportMessageBox);
+    }
+}
+
+
+// --- Data Import/Export Functions ---
 // Exports all products to a JSON file.
 function exportProducts() {
     const dataStr = JSON.stringify(products, null, 2);
@@ -1919,14 +2045,8 @@ function exportProducts() {
     displayStatus("Data produk berhasil diekspor!", "success");
 }
 
-// Imports products from a JSON file to Firestore.
-async function importProducts(event) {
-    // Hanya admin yang bisa mengimpor produk
-    if (loggedInUser && loggedInUser.role !== 'admin') {
-        displayStatus("Akses Ditolak: Hanya admin yang dapat mengimpor produk.", "error");
-        return;
-    }
-
+// Imports products from a JSON file.
+function importProducts(event) {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -1941,19 +2061,10 @@ async function importProducts(event) {
 
             const confirmed = await confirmAction("Ini akan menimpa data produk yang ada. Lanjutkan?");
             if (confirmed) {
-                // Hapus produk lama di Firestore, lalu tambahkan yang baru
-                displayStatus("Mengimpor produk...", "info");
-                const existingProductDocs = await window.getDocs(window.collection(db, PUBLIC_PRODUCTS_COLLECTION_PATH)); // Menggunakan window.getDocs dan window.collection
-                for (const docSnapshot of existingProductDocs.docs) {
-                    await window.deleteDoc(docSnapshot.ref); // Menggunakan window.deleteDoc
-                }
-
-                for (const product of importedProducts) {
-                    await window.setDoc(window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, product.id), product); // Menggunakan window.setDoc dan window.doc
-                }
-
+                products = importedProducts;
+                saveProducts();
+                renderStoreProducts(); // Re-render store products after import
                 displayStatus("Data produk berhasil diimpor!", "success");
-                // onSnapshot akan memicu pembaruan array `products` lokal dan render ulang
             } else {
                 displayStatus("Impor produk dibatalkan.", "info");
             }
@@ -1968,50 +2079,27 @@ async function importProducts(event) {
 
 // Exports all application data (products and transactions) to a JSON file.
 function exportAllData() {
-    // Data produk publik
-    const publicProducts = products;
-
-    // FIX: Ambil data transaksi dan pengeluaran dari koleksi publik
-    const allTransactions = transactionHistory;
-    const allExpenses = expenses;
-
-    // FIX: Ambil data store metrics global
-    const storeMetrics = {
+    const appData = {
+        products: products,
+        transactions: transactionHistory,
+        expenses: expenses,
+        users: users, // New: Include users in export
         dailyRevenue: dailyRevenue,
         lastRecordedDate: lastRecordedDate,
-        monthlyNetProfit: monthlyNetProfit,
-        monthlyExpenses: monthlyExpenses,
-        lastRecordedMonth: lastRecordedMonth,
-    };
-
-    // Data pribadi pengguna yang sedang login (appState)
-    const currentUserAppState = {
         isRevenueVisible: isRevenueVisible,
-        isDarkMode: isDarkMode,
+        isDarkMode: isDarkMode, // New: Include dark mode state in export
+        monthlyNetProfit: monthlyNetProfit, // New: Include monthly net profit
+        monthlyExpenses: monthlyExpenses,   // New: Include monthly expenses
+        lastRecordedMonth: lastRecordedMonth, // New: Include last recorded month
+        // Store the last connected printer's device ID
         lastConnectedPrinterId: bluetoothPrinterDevice ? bluetoothPrinterDevice.id : null
     };
-
-    const appData = {
-        appId: APP_ID, // Sertakan app ID
-        exportedByUid: currentUserId, // Sertakan UID pengguna yang mengekspor
-        exportDate: new Date().toISOString(),
-        publicData: {
-            products: publicProducts,
-            transactions: allTransactions, // FIX: Menyertakan semua transaksi
-            expenses: allExpenses,       // FIX: Menyertakan semua pengeluaran
-            storeMetrics: storeMetrics   // FIX: Menyertakan metrik toko global
-        },
-        userData: {
-            appState: currentUserAppState
-        }
-    };
-
     const dataStr = JSON.stringify(appData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pos_app_data_full_export_${currentUserId || 'unknown'}_${new Date().toISOString().slice(0,10)}.json`;
+    a.download = 'pos_app_data_full_export.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -2019,16 +2107,8 @@ function exportAllData() {
     displayStatus("Data aplikasi lengkap berhasil diekspor!", "success");
 }
 
-// Imports all application data from a JSON file to Firestore.
-async function importAllData(event) {
-    if (!currentUserId) {
-        displayStatus("Error: Anda harus login untuk mengimpor data.", "error");
-        return;
-    }
-    // Hanya admin yang bisa mengimpor data publik (produk, transaksi, pengeluaran, storeMetrics)
-    // Pengguna biasa bisa mengimpor data pribadinya (appState).
-    const isAdmin = loggedInUser && loggedInUser.role === 'admin';
-
+// Imports all application data (products and transactions) from a JSON file.
+function importAllData(event) {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -2036,96 +2116,65 @@ async function importAllData(event) {
     reader.onload = async (e) => {
         try {
             const importedData = JSON.parse(e.target.result);
-            // FIX: Periksa struktur data impor yang baru
-            if (!importedData.publicData || !importedData.userData) {
-                displayStatus("Error: Format file data aplikasi tidak valid. Pastikan berisi 'publicData' dan 'userData'.", "error");
+            // expenses and users are optional as they're newer additions
+            if (!importedData.products || !importedData.transactions) {
+                displayStatus("Error: Format file data aplikasi tidak valid. Pastikan berisi 'products' dan 'transactions'.", "error");
                 return;
             }
 
-            const confirmed = await confirmAction("Ini akan menimpa SEMUA data aplikasi Anda (produk, transaksi, dll). Lanjutkan?");
+            const confirmed = await confirmAction("Ini akan menimpa SEMUA data aplikasi yang ada (produk, transaksi, dll). Lanjutkan?");
             if (confirmed) {
-                displayStatus("Mengimpor data aplikasi...", "info");
+                products = importedData.products;
+                transactionHistory = importedData.transactions;
+                expenses = importedData.expenses || [];
+                users = importedData.users || [{ username: 'admin', password: 'admin', role: 'admin' }]; // Import users, default if not present
+                dailyRevenue = importedData.dailyRevenue || 0;
+                lastRecordedDate = importedData.lastRecordedDate || '';
+                isRevenueVisible = typeof importedData.isRevenueVisible !== 'undefined' ? importedData.isRevenueVisible : true;
+                isDarkMode = typeof importedData.isDarkMode !== 'undefined' ? importedData.isDarkMode : false; // New: Import dark mode state
 
-                // Import data produk (hanya jika admin)
-                if (isAdmin && importedData.publicData.products) {
-                    const existingProductDocs = await window.getDocs(window.collection(db, PUBLIC_PRODUCTS_COLLECTION_PATH)); // Menggunakan window.getDocs dan window.collection
-                    for (const docSnapshot of existingProductDocs.docs) {
-                        await window.deleteDoc(docSnapshot.ref); // Menggunakan window.deleteDoc
-                    }
-                    for (const product of importedData.publicData.products) {
-                        await window.setDoc(window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, product.id), product); // Menggunakan window.setDoc dan window.doc
-                    }
-                    console.log("Produk publik berhasil diimpor.");
-                } else if (!isAdmin) {
-                    displayStatus("Anda bukan Admin. Data produk publik tidak diimpor.", "warning");
+                // New: Import monthly financial data
+                monthlyNetProfit = importedData.monthlyNetProfit || 0;
+                monthlyExpenses = importedData.monthlyExpenses || 0;
+                lastRecordedMonth = importedData.lastRecordedMonth || '';
+
+                // Restore last connected printer ID (but not the device object itself)
+                const storedPrinterId = importedData.lastConnectedPrinterId || null;
+                if (storedPrinterId) {
+                    localStorage.setItem(LOCAL_STORAGE_PRINTER_ID_KEY, storedPrinterId);
+                } else {
+                    localStorage.removeItem(LOCAL_STORAGE_PRINTER_ID_KEY);
                 }
 
-                // FIX: Import data transaksi publik (hanya jika admin)
-                if (isAdmin && importedData.publicData.transactions) {
-                    const existingTransactionDocs = await window.getDocs(window.collection(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH));
-                    for (const docSnapshot of existingTransactionDocs.docs) {
-                        await window.deleteDoc(docSnapshot.ref);
-                    }
-                    for (const transaction of importedData.publicData.transactions) {
-                        await window.setDoc(window.doc(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH, transaction.id), transaction);
-                    }
-                    console.log("Transaksi publik berhasil diimpor.");
-                } else if (!isAdmin && importedData.userData.transactions) {
-                    // Jika bukan admin, hanya impor transaksi pribadi jika ada di file lama
-                    // Ini untuk kompatibilitas mundur jika user mengimpor file lama (sebelum transaksi publik)
-                    const existingTransactionDocs = await window.getDocs(window.collection(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH)); // Now it's public
-                    for (const docSnapshot of existingTransactionDocs.docs) {
-                        await window.deleteDoc(docSnapshot.ref);
-                    }
-                    for (const transaction of importedData.userData.transactions) {
-                         // Still save to public, but ensure it's from user's old private data if exists
-                        await window.setDoc(window.doc(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH, transaction.id), transaction);
-                    }
-                     console.log("Transaksi pribadi (dari format lama) berhasil diimpor ke koleksi publik.");
-                }
+                // IMPORTANT: Logged in user is NOT imported from app data.
+                // It should be handled by sessionStorage (for session-based login) or re-login.
+                // After importing, the app will return to the login screen.
+                loggedInUser = null;
+                sessionStorage.removeItem(SESSION_STORAGE_LOGGED_IN_USER_KEY); // Explicitly clear session storage for logged in user
 
+                saveProducts();
+                saveTransactionHistory();
+                saveExpenses();
+                saveUsers(); // Save imported users (this will also clear session user, consistent with loggedInUser = null)
+                saveDailyRevenue();
+                saveRevenueVisibility();
+                saveDarkModeState(); // New: Save imported dark mode state
+                saveMonthlyFinancialData(); // New: Save imported monthly financial data
 
-                // FIX: Import data pengeluaran publik (hanya jika admin)
-                if (isAdmin && importedData.publicData.expenses) {
-                    const existingExpenseDocs = await window.getDocs(window.collection(db, PUBLIC_EXPENSES_COLLECTION_PATH));
-                    for (const docSnapshot of existingExpenseDocs.docs) {
-                        await window.deleteDoc(docSnapshot.ref);
-                    }
-                    for (const expense of importedData.publicData.expenses) {
-                        await window.setDoc(window.doc(db, PUBLIC_EXPENSES_COLLECTION_PATH, expense.id), expense);
-                    }
-                    console.log("Pengeluaran publik berhasil diimpor.");
-                } else if (!isAdmin && importedData.userData.expenses) {
-                     // Jika bukan admin, hanya impor pengeluaran pribadi jika ada di file lama
-                     const existingExpenseDocs = await window.getDocs(window.collection(db, PUBLIC_EXPENSES_COLLECTION_PATH)); // Now it's public
-                    for (const docSnapshot of existingExpenseDocs.docs) {
-                        await window.deleteDoc(docSnapshot.ref);
-                    }
-                    for (const expense of importedData.userData.expenses) {
-                        await window.setDoc(window.doc(db, PUBLIC_EXPENSES_COLLECTION_PATH, expense.id), expense);
-                    }
-                    console.log("Pengeluaran pribadi (dari format lama) berhasil diimpor ke koleksi publik.");
-                }
+                // Re-render all necessary components and reset UI state
+                renderStoreProducts();
+                updateHeaderDailyRevenue();
+                updateCashierDisplay(); // Update cashier display to reflect no logged in user initially
+                applyDarkMode(); // Apply imported dark mode state
+                renderMonthlyFinancialBar(); // Render the monthly bar after import
 
+                // Attempt to reconnect to the printer after import
+                loadSavedPrinter();
+                updatePrinterConnectionStatus("Silahkan sambungkan printer"); // Reset printer status
 
-                // FIX: Import store metrics (hanya jika admin)
-                if (isAdmin && importedData.publicData.storeMetrics) {
-                    await window.setDoc(window.doc(db, STORE_METRICS_DOC_PATH), importedData.publicData.storeMetrics, { merge: true });
-                    console.log("Store metrics berhasil diimpor.");
-                } else if (!isAdmin) {
-                    displayStatus("Anda bukan Admin. Data metrik toko tidak diimpor.", "warning");
-                }
-
-
-                // Import app state pribadi (tetap berlaku untuk semua user)
-                if (importedData.userData.appState) {
-                    await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), importedData.userData.appState, { merge: true }); // Menggunakan window.setDoc dan window.doc
-                    console.log("App state pribadi berhasil diimpor.");
-                }
-
-                displayStatus("Data aplikasi berhasil diimpor! Silakan muat ulang halaman untuk pembaruan penuh.", "success");
-                // Memuat ulang halaman untuk memastikan semua data dan listener diinisialisasi ulang
-                // window.location.reload(); // Mungkin terlalu agresif, lebih baik biarkan listener yang bekerja
+                // Redirect to login screen after successful import and state reset
+                loginScreen.classList.remove('hidden');
+                mainAppContainer.classList.add('hidden');
             } else {
                 displayStatus("Impor data aplikasi dibatalkan.", "info");
             }
@@ -2139,123 +2188,60 @@ async function importAllData(event) {
 }
 
 // Function to perform the actual data reset
-async function performResetAllData() {
-    if (!currentUserId) {
-        displayStatus("Error: Anda harus login untuk mereset data.", "error", resetDataMessage);
-        return;
-    }
+function performResetAllData() {
+    products = [];
+    transactionHistory = [];
+    expenses = [];
+    users = [{ username: 'admin', password: 'admin', role: 'admin' }]; // Reset to default admin user
+    loggedInUser = null; // Clear logged-in user
+    dailyRevenue = 0;
+    lastRecordedDate = '';
+    isRevenueVisible = true;
+    isDarkMode = false; // Reset dark mode to default (light)
+    monthlyNetProfit = 0; // Reset monthly financial data
+    monthlyExpenses = 0;
+    lastRecordedMonth = '';
+    bluetoothPrinterDevice = null; // Clear printer connection
+    printerCharacteristic = null;
 
-    const isAdmin = loggedInUser && loggedInUser.role === 'admin';
+    // Clear all relevant local and session storage items
+    localStorage.clear();
+    sessionStorage.clear();
 
-    try {
-        // FIX: Reset data transaksi publik
-        displayStatus("Mereset data transaksi publik...", "info", resetDataMessage);
-        const publicTransactionsRef = window.collection(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH);
-        const publicTransactionDocs = await window.getDocs(publicTransactionsRef);
-        for (const d of publicTransactionDocs.docs) { await window.deleteDoc(d.ref); }
+    // Re-initialize all data after clearing
+    loadProducts(); // This will also call renderProductDatalist()
+    loadExpenses();
+    loadUsers(); // This will re-add the default admin and clear session user
+    loadDailyRevenue();
+    loadRevenueVisibility();
+    loadDarkModeState(); // Load default dark mode state
+    loadMonthlyFinancialData(); // Load default monthly financial data
 
-        // FIX: Reset data pengeluaran publik
-        displayStatus("Mereset data pengeluaran publik...", "info", resetDataMessage);
-        const publicExpensesRef = window.collection(db, PUBLIC_EXPENSES_COLLECTION_PATH);
-        const publicExpenseDocs = await window.getDocs(publicExpensesRef);
-        for (const d of publicExpenseDocs.docs) { await window.deleteDoc(d.ref); }
+    // Save initial states to localStorage (users are saved by loadUsers)
+    saveProducts(); // This will also call renderProductDatalist()
+    saveTransactionHistory();
+    saveExpenses();
+    saveDailyRevenue();
+    saveRevenueVisibility();
+    saveDarkModeState(); // Save default dark mode state
+    saveMonthlyFinancialData(); // Save default monthly financial data
+    localStorage.removeItem(LOCAL_STORAGE_PRINTER_ID_KEY); // Clear saved printer ID
 
-        // FIX: Reset store metrics global
-        displayStatus("Mereset metrik toko global...", "info", resetDataMessage);
-        const storeMetricsRef = window.doc(db, STORE_METRICS_DOC_PATH);
-        await window.deleteDoc(storeMetricsRef); // Hapus dokumen store metrics global
-
-        // Reset appState pribadi (tetap sama)
-        displayStatus("Mereset app state pribadi...", "info", resetDataMessage);
-        const appStateRef = window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId));
-        await window.deleteDoc(appStateRef);
-
-        // Reset data publik (produk) hanya jika admin
-        if (isAdmin) {
-            displayStatus("Mereset data produk publik...", "info", resetDataMessage);
-            const productsRef = window.collection(db, PUBLIC_PRODUCTS_COLLECTION_PATH); // Menggunakan window.collection
-            const productDocs = await window.getDocs(productsRef); // Menggunakan window.getDocs
-            for (const d of productDocs.docs) { await window.deleteDoc(d.ref); } // Menggunakan window.deleteDoc
-            // Setelah menghapus, buat kembali beberapa produk default jika diinginkan
-            await addDefaultProductsToFirestore();
-        } else {
-            displayStatus("Anda bukan Admin. Data produk publik tidak direset.", "warning", resetDataMessage);
-        }
-
-        // Opsional: Buat kembali storeMetrics default setelah reset
-        await window.setDoc(window.doc(db, STORE_METRICS_DOC_PATH), {
-            dailyRevenue: 0,
-            lastRecordedDate: new Date().toISOString().slice(0, 10),
-            monthlyNetProfit: 0,
-            monthlyExpenses: 0,
-            lastRecordedMonth: new Date().toISOString().slice(0, 7)
-        });
-
-        // Opsional: Buat kembali appState default setelah reset
-        await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { // Menggunakan window.setDoc dan window.doc
-            isRevenueVisible: true,
-            isDarkMode: false,
-            lastConnectedPrinterId: null
-        });
-
-
-        // Membersihkan variabel lokal dan UI setelah reset
-        currentTransactionItems = [];
-        dailyRevenue = 0; // Reset variabel lokal
-        lastRecordedDate = ''; // Reset variabel lokal
-        isRevenueVisible = true;
-        isDarkMode = false;
-        monthlyNetProfit = 0; // Reset variabel lokal
-        monthlyExpenses = 0; // Reset variabel lokal
-        lastRecordedMonth = ''; // Reset variabel lokal
-        bluetoothPrinterDevice = null;
-        printerCharacteristic = null;
-
-        // Tidak perlu load ulang dari Firestore karena listener akan memicu itu
-        // dan dokumen default appState sudah dibuat.
-
-        startNewTransaction(); // Reset UI
-        updateHeaderDailyRevenue();
-        updateCashierDisplay();
-        applyDarkMode();
-        renderMonthlyFinancialBar();
-        updatePrinterConnectionStatus("Silahkan sambungkan printer");
-        displayStatus("Semua data aplikasi telah direset!", "success");
-
-    } catch (e) {
-        console.error("Error saat mereset data:", e);
-        displayStatus("Error: Gagal mereset data. Periksa koneksi internet atau hak akses.", "error", resetDataMessage);
-    }
+    startNewTransaction();
+    renderStoreProducts();
+    updateHeaderDailyRevenue();
+    updateCashierDisplay(); // Update cashier display after reset
+    applyDarkMode(); // Apply default dark mode state
+    renderMonthlyFinancialBar(); // Render the monthly bar
+    updatePrinterConnectionStatus("Silahkan sambungkan printer"); // Reset printer status
+    displayStatus("Semua data aplikasi telah direset!", "success");
 }
-
-// Fungsi untuk menambahkan produk default ke Firestore jika kosong
-async function addDefaultProductsToFirestore() {
-    const productsRef = window.collection(db, PUBLIC_PRODUCTS_COLLECTION_PATH); // Menggunakan window.collection
-    const existingProducts = await window.getDocs(productsRef); // Menggunakan window.getDocs
-    if (existingProducts.empty) {
-        const defaultProducts = [
-            { id: 'prod001', name: "Kopi Hitam", price: 15000, cost: 10000, stock: 100 },
-            { id: 'prod002', name: "Kopi Susu", price: 18000, cost: 12000, stock: 80 },
-            { id: 'prod003', name: "Teh Manis", price: 10000, cost: 6000, stock: 150 },
-            { id: 'prod004', name: "Es Jeruk", price: 12000, cost: 7000, stock: 90 },
-            { id: 'prod005', name: "Roti Bakar Keju", price: 25000, cost: 18000, stock: 50 },
-            { id: 'prod006', name: "Mie Ayam", price: 22000, cost: 15000, stock: 70 },
-            { id: 'prod007', name: "Nasi Goreng", price: 28000, cost: 20000, stock: 60 },
-            { id: 'prod008', name: "Air Mineral", price: 5000, cost: 2000, stock: 200 },
-        ];
-        for (const product of defaultProducts) {
-            await window.setDoc(window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, product.id), product); // Menggunakan window.setDoc dan window.doc
-        }
-        console.log("Produk default ditambahkan ke Firestore.");
-    }
-}
-
 
 // Function to open the reset data confirmation modal
 function openResetDataConfirmation() {
     resetDataModal.classList.remove('hidden');
-    resetPasswordInput.value = '';
-    resetDataMessage.classList.add('hidden');
+    resetPasswordInput.value = ''; // Clear input field
+    resetDataMessage.classList.add('hidden'); // Hide any previous messages
 }
 
 
@@ -2263,15 +2249,15 @@ function openResetDataConfirmation() {
 // Renders the list of transactions in the history modal, with optional date filter.
 function renderTransactionHistory(startDateStr = '', endDateStr = '') {
     if (!transactionHistoryTableBody || !totalTransactionsAmount) return;
-    transactionHistoryTableBody.innerHTML = '';
+    transactionHistoryTableBody.innerHTML = ''; // Clear existing rows
 
     let filteredHistory = transactionHistory;
 
     if (startDateStr && endDateStr) {
         const startDate = new Date(startDateStr);
-        startDate.setHours(0, 0, 0, 0);
+        startDate.setHours(0, 0, 0, 0); // Start of the day
         const endDate = new Date(endDateStr);
-        endDate.setHours(23, 59, 59, 999);
+        endDate.setHours(23, 59, 59, 999); // End of the day
 
         filteredHistory = transactionHistory.filter(transaction => {
             const transactionDate = new Date(transaction.date);
@@ -2298,12 +2284,12 @@ function renderTransactionHistory(startDateStr = '', endDateStr = '') {
     if (filteredHistory.length === 0) {
         transactionHistoryMessageBox.classList.remove('hidden');
         transactionHistoryMessageBox.textContent = "Tidak ada transaksi dalam riwayat." + (startDateStr || endDateStr ? " untuk rentang tanggal yang dipilih." : "");
-        totalAmountFilteredTransactions = 0;
+        totalAmountFilteredTransactions = 0; // Reset total if no transactions
     } else {
         transactionHistoryMessageBox.classList.add('hidden');
     }
 
-    filteredHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+    filteredHistory.sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by most recent first
 
     filteredHistory.forEach(transaction => {
         const row = document.createElement('tr');
@@ -2319,7 +2305,7 @@ function renderTransactionHistory(startDateStr = '', endDateStr = '') {
         row.innerHTML = `
             <td class="py-2 px-4 border-b ${borderColor} ${textClass}">${transaction.id}</td>
             <td class="py-2 px-4 border-b ${borderColor} ${textClass}">${transactionDate}</td>
-            <td class="py-2 px-4 border-b ${borderColor} ${textClass}">${transaction.cashierEmail || 'N/A'}</td>
+            <td class="py-2 px-4 border-b ${borderColor} ${textClass}">${transaction.cashier || 'N/A'}</td>
             <td class="py-2 px-4 border-b ${borderColor} text-right ${textClass}">Rp ${transaction.totalAmount.toLocaleString('id-ID')}</td>
             <td class="py-2 px-4 border-b ${borderColor} text-center">
                 <button class="view-detail-btn text-blue-500 hover:text-blue-700 mr-2" data-transaction-id="${transaction.id}" title="Lihat Detail">
@@ -2336,7 +2322,7 @@ function renderTransactionHistory(startDateStr = '', endDateStr = '') {
             </td>
         `;
         transactionHistoryTableBody.appendChild(row);
-        totalAmountFilteredTransactions += transaction.totalAmount;
+        totalAmountFilteredTransactions += transaction.totalAmount; // Accumulate total
     });
     totalTransactionsAmount.textContent = `Rp ${totalAmountFilteredTransactions.toLocaleString('id-ID')}`;
 }
@@ -2349,26 +2335,30 @@ function viewTransactionDetails(transactionId) {
         return;
     }
 
+    // Hide main history list and show detail section
     document.getElementById('transaction-history-table-body').parentElement.classList.add('hidden');
     document.getElementById('transaction-history-message-box').classList.add('hidden');
-    historyFilterControls.classList.add('hidden');
-    totalTransactionsAmount.parentElement.classList.add('hidden');
+    historyFilterControls.classList.add('hidden'); // Hide filter controls
+    totalTransactionsAmount.parentElement.classList.add('hidden'); // Hide total transactions amount
     transactionDetailSection.classList.remove('hidden');
 
+    // Store the transaction ID on the reprint button
     reprintReceiptBtn.dataset.transactionId = transaction.id;
 
+    // Populate detail fields
     detailTransactionId.textContent = transaction.id;
     detailTransactionDate.textContent = new Date(transaction.date).toLocaleString('id-ID', {
         year: 'numeric', month: 'long', day: 'numeric',
         hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
-    detailCashier.textContent = transaction.cashierEmail || 'N/A'; // Gunakan email kasir
+    detailCashier.textContent = transaction.cashier || 'N/A';
     detailSubtotal.textContent = `Rp ${transaction.subtotalAmount.toLocaleString('id-ID')}`;
     detailDiscount.textContent = `Rp ${transaction.discountAmount.toLocaleString('id-ID')}`;
     detailTotalAmount.textContent = `Rp ${transaction.totalAmount.toLocaleString('id-ID')}`;
     detailPaymentAmount.textContent = `Rp ${transaction.paymentAmount.toLocaleString('id-ID')}`;
     detailChangeAmount.textContent = `Rp ${transaction.changeAmount.toLocaleString('id-ID')}`;
 
+    // Populate item list for details
     detailItemList.innerHTML = '';
     if (transaction.items && transaction.items.length > 0) {
         transaction.items.forEach(item => {
@@ -2376,7 +2366,7 @@ function viewTransactionDetails(transactionId) {
             const textClass = isDarkMode ? 'text-gray-200' : 'text-gray-700';
             const borderColor = isDarkMode ? 'border-gray-600' : 'border-gray-200';
             row.innerHTML = `
-                <td class="py-2 px-4 border-b ${borderColor} ${textClass}">${item.name}</td>
+                <td class="py-2 px-4 border-b ${borderColor} ${textClass}">${item.name} ${item.isOnlineShop ? `(${item.marketplace} - ${item.resi})` : ''}</td>
                 <td class="py-2 px-4 border-b ${borderColor} text-right ${textClass}">${item.qty}</td>
                 <td class="py-2 px-4 border-b ${borderColor} text-right ${textClass}">Rp ${item.price.toLocaleString('id-ID')}</td>
                 <td class="py-2 px-4 border-b ${borderColor} text-right ${textClass}">Rp ${(item.qty * item.price).toLocaleString('id-ID')}</td>
@@ -2393,320 +2383,209 @@ function viewTransactionDetails(transactionId) {
 function closeTransactionDetails() {
     transactionDetailSection.classList.add('hidden');
     document.getElementById('transaction-history-table-body').parentElement.classList.remove('hidden');
-    historyFilterControls.classList.remove('hidden');
-    totalTransactionsAmount.parentElement.classList.remove('hidden');
-    renderTransactionHistory(historyStartDateInput.value, historyEndDateInput.value);
+    historyFilterControls.classList.remove('hidden'); // Show filter controls
+    totalTransactionsAmount.parentElement.classList.remove('hidden'); // Show total transactions amount
+    renderTransactionHistory(historyStartDateInput.value, historyEndDateInput.value); // Re-render history list
 }
 
-// Deletes a transaction from Firestore and returns stock for registered products.
+// Deletes a transaction and returns stock for registered products.
 async function deleteTransaction(transactionId) {
-    if (!db || !currentUserId) {
-        displayStatus("Error: Tidak dapat menghapus transaksi, pengguna belum login.", "error");
-        return;
-    }
-    // Hanya admin yang bisa menghapus transaksi
-    if (loggedInUser && loggedInUser.role !== 'admin') {
-        displayStatus("Akses Ditolak: Hanya admin yang dapat menghapus transaksi.", "error");
-        return;
-    }
-
     const confirmed = await confirmAction("Apakah Anda yakin ingin menghapus transaksi ini? Stok produk terdaftar akan dikembalikan.");
     if (!confirmed) return;
 
-    try {
-        const transactionToDelete = transactionHistory.find(t => t.id === transactionId);
-        if (!transactionToDelete) {
-            displayStatus("Error: Transaksi tidak ditemukan untuk dihapus.", "error");
-            return;
-        }
+    const transactionIndex = transactionHistory.findIndex(t => t.id === transactionId);
+    if (transactionIndex > -1) {
+        const transactionToDelete = transactionHistory[transactionIndex];
 
-        // Kembalikan stok untuk semua produk yang terdaftar
-        for (const item of transactionToDelete.items) {
-            if (!item.productId.startsWith('custom-')) {
+        // Return stock for all products, only if it's a registered product
+        transactionToDelete.items.forEach(item => {
+            if (!item.isCustom && !item.isOnlineShop) { // Check if it's NOT a custom or online shop product
                 const product = products.find(p => p.id === item.productId);
                 if (product && product.stock !== undefined) {
                     product.stock += item.qty;
-                    await window.setDoc(window.doc(db, PUBLIC_PRODUCTS_COLLECTION_PATH, product.id), product); // Update stok di Firestore // Menggunakan window.setDoc dan window.doc
                 }
             }
-        }
+        });
 
-        // FIX: Hapus dokumen transaksi dari koleksi publik
-        await window.deleteDoc(window.doc(db, PUBLIC_TRANSACTIONS_COLLECTION_PATH, transactionId));
-        displayStatus("Transaksi berhasil dihapus dan stok dikembalikan!", "success");
+        transactionHistory.splice(transactionIndex, 1); // Remove transaction
+        saveTransactionHistory(); // Save updated history
+        saveProducts(); // Save updated products (stock changes)
 
-        // Perbarui daily dan monthly revenue di store metrics global
+        // Recalculate daily revenue if the deleted transaction was from the current day
         const today = new Date().toISOString().slice(0, 10);
         const transactionDate = new Date(transactionToDelete.date).toISOString().slice(0, 10);
         if (transactionDate === today) {
             dailyRevenue -= transactionToDelete.totalAmount;
-            if (dailyRevenue < 0) dailyRevenue = 0;
+            if (dailyRevenue < 0) dailyRevenue = 0; // Prevent negative revenue
+            saveDailyRevenue();
+            updateHeaderDailyRevenue();
         }
 
+        // Recalculate monthly net profit if the deleted transaction was from the current month
         const thisMonth = new Date().toISOString().slice(0, 7);
         const transactionMonth = new Date(transactionToDelete.date).toISOString().slice(0, 7);
         if (transactionMonth === thisMonth && transactionToDelete.transactionNetProfit !== undefined) {
             monthlyNetProfit -= transactionToDelete.transactionNetProfit;
+            saveMonthlyFinancialData();
+            renderMonthlyFinancialBar(); // Update the monthly bar
         }
-        await saveStoreMetricsToFirestore(); // Simpan perubahan ke store metrics global
-        // onSnapshot akan memicu pembaruan array `transactionHistory` lokal dan render ulang UI
-    } catch (e) {
-        console.error("Gagal menghapus transaksi dari Firestore:", e);
-        displayStatus("Error: Gagal menghapus transaksi. Periksa koneksi internet atau hak akses.", "error");
+
+        renderTransactionHistory(historyStartDateInput.value, historyEndDateInput.value); // Re-render the list
+        displayStatus("Transaksi berhasil dihapus dan stok dikembalikan!", "success");
+    } else {
+        displayStatus("Penghapusan transaksi dibatalkan.", "info");
     }
 }
 
-// --- User Management Functions (Menggunakan Firebase Auth & Firestore) ---
+// --- User Management Functions (New) ---
 
 // Main login function for the initial login screen.
-async function loginUser() {
-    if (!auth) {
-        displayStatus("Error: Firebase Auth tidak diinisialisasi.", "error", loginScreenMessage);
-        return;
-    }
-
-    const email = loginScreenEmailInput.value.trim();
+function loginUser() {
+    const username = loginScreenUsernameInput.value.trim();
     const password = loginScreenPasswordInput.value.trim();
 
-    if (!email || !password) {
-        displayStatus("Email dan password wajib diisi!", "error", loginScreenMessage);
-        return;
-    }
+    const user = users.find(u => u.username === username && u.password === password);
 
-    try {
-        displayStatus("Login...", "info", loginScreenMessage);
-        const userCredential = await window.signInWithEmailAndPassword(auth, email, password); // Menggunakan window.signInWithEmailAndPassword
-        // onAuthStateChanged akan menangani pembaruan UI dan pemuatan data
-        displayStatus(`Selamat datang, ${userCredential.user.email}!`, "success", loginScreenMessage);
+    if (user) {
+        loggedInUser = user;
+        saveUsers(); // Save logged-in user state (to sessionStorage)
+        updateCashierDisplay(); // Update display in header
+        displayStatus(`Selamat datang, ${user.username}! Anda login sebagai ${user.role}.`, "success", loginScreenMessage);
+
+        // Hide login screen, show main app
+        loginScreen.classList.add('hidden');
+        mainAppContainer.classList.remove('hidden');
+        startNewTransaction(); // Start a new transaction after login
         // Clear login fields
-        loginScreenEmailInput.value = '';
+        loginScreenUsernameInput.value = '';
         loginScreenPasswordInput.value = '';
-    } catch (error) {
-        console.error("Login Error:", error);
-        let errorMessage = "Login gagal. Periksa email dan password lo.";
-        if (error.code === 'auth/user-not-found') {
-            errorMessage = "Pengguna tidak ditemukan. Email tidak terdaftar.";
-        } else if (error.code === 'auth/wrong-password') {
-            errorMessage = "Password salah.";
-        } else if (error.code === 'auth/invalid-email') {
-            errorMessage = "Format email tidak valid.";
-        }
-        displayStatus(errorMessage, "error", loginScreenMessage);
+        displayStatus("", "", loginScreenMessage); // Clear message
+    } else {
+        displayStatus("Username atau password salah!", "error", loginScreenMessage);
     }
 }
 
 // Handles user login *within the user settings modal*.
-async function userSettingsLogin() {
-    if (!auth) {
-        displayStatus("Error: Firebase Auth tidak diinisialisasi.", "error", userSettingsLoginStatusMessage);
-        return;
-    }
-
-    const email = userSettingsLoginEmailInput.value.trim();
+function userSettingsLogin() {
+    const username = userSettingsLoginUsernameInput.value.trim();
     const password = userSettingsLoginPasswordInput.value.trim();
 
-    if (!email || !password) {
-        displayStatus("Email dan password wajib diisi!", "error", userSettingsLoginStatusMessage);
-        return;
-    }
+    const user = users.find(u => u.username === username && u.password === password);
 
-    try {
-        displayStatus("Login...", "info", userSettingsLoginStatusMessage);
-        const userCredential = await window.signInWithEmailAndPassword(auth, email, password); // Menggunakan window.signInWithEmailAndPassword
-        // onAuthStateChanged akan menangani pembaruan UI dan pemuatan data
-        displayStatus(`Selamat datang, ${userCredential.user.email}!`, "success", userSettingsLoginStatusMessage);
-        // Clear login fields
-        userSettingsLoginEmailInput.value = '';
-        userSettingsLoginPasswordInput.value = '';
-    } catch (error) {
-        console.error("User Settings Login Error:", error);
-        let errorMessage = "Login gagal. Periksa email dan password lo.";
-        if (error.code === 'auth/user-not-found') {
-            errorMessage = "Pengguna tidak ditemukan. Email tidak terdaftar.";
-        } else if (error.code === 'auth/wrong-password') {
-            errorMessage = "Password salah.";
-        } else if (error.code === 'auth/invalid-email') {
-            errorMessage = "Format email tidak valid.";
-        }
-        displayStatus(errorMessage, "error", userSettingsLoginStatusMessage);
+    if (user) {
+        loggedInUser = user;
+        saveUsers(); // Save logged-in user state (to sessionStorage)
+        updateCashierDisplay(); // Update display in header
+        displayStatus(`Selamat datang, ${user.username}! Anda login sebagai ${user.role}.`, "success", userSettingsLoginStatusMessage);
+        showUserManagementSection(); // Re-evaluate and show/hide sections
+    } else {
+        displayStatus("Username atau password salah!", "error", userSettingsLoginStatusMessage);
     }
 }
 
 // Handles user logout.
-async function logoutUser() {
-    if (!auth) return;
-
-    const confirmed = await confirmAction("Apakah Anda yakin ingin logout?");
+function logoutUser() {
+    const confirmed = confirm("Apakah Anda yakin ingin logout?");
     if (!confirmed) return;
 
-    try {
-        await window.signOut(auth); // Menggunakan window.signOut
-        displayStatus("Anda telah logout.", "info");
-        // onAuthStateChanged akan menangani pembaruan UI
-    } catch (error) {
-        console.error("Logout Error:", error);
-        displayStatus(`Error saat logout: ${error.message}`, "error");
+    loggedInUser = null;
+    saveUsers(); // Clear logged-in user state (from sessionStorage)
+    updateCashierDisplay(); // Update display in header
+    displayStatus("Anda telah logout.", "info");
+
+    // Show the main login screen and hide the main app
+    loginScreen.classList.remove('hidden');
+    mainAppContainer.classList.add('hidden');
+    startNewTransaction(); // Reset transaction state
+
+    // If user settings modal is open, ensure it shows the login section
+    if (!userSettingsModal.classList.contains('hidden')) {
+        showUserManagementSection(); // This will show login if no user is logged in
     }
 }
 
-// Adds a new user (cashier or admin) to Firebase Auth and Firestore.
-async function addNewUser() {
-    if (!auth || !db) {
-        displayStatus("Error: Firebase tidak diinisialisasi.", "error", addUserStatusMessage);
-        return;
-    }
-    // Hanya admin yang bisa menambah pengguna baru
-    if (loggedInUser && loggedInUser.role !== 'admin') {
-        displayStatus("Akses Ditolak: Hanya admin yang dapat menambah pengguna baru.", "error", addUserStatusMessage);
-        return;
-    }
-
-    const email = newUseEmailInput.value.trim();
+// Adds a new user (cashier or admin).
+function addNewUser() {
+    const username = newUserNameInput.value.trim();
     const password = newUserPasswordInput.value.trim();
     const role = newUserRoleSelect.value;
 
-    if (!email || !password) {
-        displayStatus("Email dan password wajib diisi!", "error", addUserStatusMessage);
-        return;
-    }
-    if (password.length < 6) {
-        displayStatus("Password minimal 6 karakter!", "error", addUserStatusMessage);
+    if (!username || !password) {
+        displayStatus("Username dan password wajib diisi!", "error", addUserStatusMessage);
         return;
     }
 
-    try {
-        displayStatus("Menambah pengguna...", "info", addUserStatusMessage);
-        const userCredential = await window.createUserWithEmailAndPassword(auth, email, password); // Menggunakan window.createUserWithEmailAndPassword
-        const uid = userCredential.user.uid;
-
-        // Simpan role pengguna di Firestore
-        await window.setDoc(window.doc(db, USER_ROLES_COLLECTION_PATH, uid), { // Menggunakan window.setDoc dan window.doc
-            email: email,
-            role: role
-        });
-
-        displayStatus("Pengguna baru berhasil ditambahkan!", "success", addUserStatusMessage);
-        newUseEmailInput.value = '';
-        newUserPasswordInput.value = '';
-        newUserRoleSelect.value = 'cashier';
-        // onSnapshot untuk user roles akan memicu renderUserList
-    } catch (error) {
-        console.error("Error adding new user:", error);
-        let errorMessage = "Gagal menambah pengguna.";
-        if (error.code === 'auth/email-already-in-use') {
-            errorMessage = "Email sudah digunakan oleh pengguna lain.";
-        } else if (error.code === 'auth/invalid-email') {
-            errorMessage = "Format email tidak valid.";
-        } else if (error.code === 'auth/weak-password') {
-            errorMessage = "Password terlalu lemah (minimal 6 karakter).";
-        }
-        displayStatus(errorMessage, "error", addUserStatusMessage);
+    if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+        displayStatus("Username sudah ada. Pilih username lain.", "error", addUserStatusMessage);
+        return;
     }
+
+    users.push({ username, password, role });
+    saveUsers();
+    renderUserList(); // Update the displayed user list
+    displayStatus("Pengguna baru berhasil ditambahkan!", "success", addUserStatusMessage);
+    newUserNameInput.value = '';
+    newUserPasswordInput.value = '';
+    newUserRoleSelect.value = 'cashier'; // Reset to default
 }
 
 // Renders the list of users in the user management section.
-async function renderUserList() {
-    if (!userListBody || !emptyUserMessage || !db) return;
+function renderUserList() {
+    if (!userListBody || !emptyUserMessage) return;
     userListBody.innerHTML = '';
 
-    // Hanya admin yang bisa melihat daftar pengguna
-    if (loggedInUser && loggedInUser.role !== 'admin') {
-        userListBody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-gray-500">Akses Ditolak: Hanya admin yang dapat melihat daftar pengguna.</td></tr>`;
+    if (users.length === 0) {
+        emptyUserMessage.classList.remove('hidden');
+    } else {
         emptyUserMessage.classList.add('hidden');
-        return;
-    }
+        users.forEach(user => {
+            const row = document.createElement('tr');
+            const hoverClass = isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50';
+            const textClass = isDarkMode ? 'text-gray-200' : 'text-gray-700';
+            const borderColor = isDarkMode ? 'border-gray-600' : 'border-gray-200';
 
-    try {
-        const querySnapshot = await window.getDocs(window.collection(db, USER_ROLES_COLLECTION_PATH)); // Menggunakan window.getDocs dan window.collection
-        const usersInFirestore = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
-
-        if (usersInFirestore.length === 0) {
-            emptyUserMessage.classList.remove('hidden');
-        } else {
-            emptyUserMessage.classList.add('hidden');
-            usersInFirestore.forEach(user => {
-                const row = document.createElement('tr');
-                const hoverClass = isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50';
-                const textClass = isDarkMode ? 'text-gray-200' : 'text-gray-700';
-                const borderColor = isDarkMode ? 'border-gray-600' : 'border-gray-200';
-
-                row.className = hoverClass;
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${textClass} ${borderColor}">${user.email}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm ${textClass} ${borderColor}">${user.role}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium ${borderColor}">
-                        ${(loggedInUser && loggedInUser.uid === user.uid) ? '' : ` <!-- Prevent deleting the currently logged-in user -->
-                        ${user.email.toLowerCase() !== 'admin@admin.com' ? ` <!-- Prevent deleting hardcoded admin (contoh, kalau ada admin default) -->
-                        <button class="delete-user-btn text-red-600 hover:text-red-900" data-uid="${user.uid}" data-email="${user.email}" title="Hapus Pengguna">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
-                        ` : ''}
-                        `}
-                    </td>
-                `;
-                userListBody.appendChild(row);
-            });
-        }
-    } catch (e) {
-        console.error("Error fetching user list from Firestore:", e);
-        userListBody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-gray-500">Error memuat daftar pengguna.</td></tr>`;
+            row.className = hoverClass;
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${textClass} ${borderColor}">${user.username}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${textClass} ${borderColor}">${user.role}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium ${borderColor}">
+                    ${(loggedInUser && loggedInUser.username === user.username) ? '' : ` <!-- Prevent deleting the currently logged-in user -->
+                    ${user.username.toLowerCase() !== 'admin' ? ` <!-- Prevent deleting default admin -->
+                    <button class="delete-user-btn text-red-600 hover:text-red-900" data-username="${user.username}" title="Hapus Pengguna">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                    ` : ''}
+                    `}
+                </td>
+            `;
+            userListBody.appendChild(row);
+        });
     }
 }
 
-// Deletes a user from Firebase Auth and Firestore.
-async function deleteUser(uid, emailToDelete) {
-    if (!auth || !db) {
-        displayStatus("Error: Firebase tidak diinisialisasi.", "error", addUserStatusMessage);
+// Deletes a user.
+async function deleteUser(username) {
+    if (username.toLowerCase() === 'admin') { // Prevent deleting default admin
+        displayStatus("Tidak dapat menghapus pengguna 'admin' default.", "error", addUserStatusMessage);
         return;
     }
-    // Hanya admin yang bisa menghapus pengguna
-    if (loggedInUser && loggedInUser.role !== 'admin') {
-        displayStatus("Akses Ditolak: Hanya admin yang dapat menghapus pengguna.", "error", addUserStatusMessage);
-        return;
-    }
-    // Jangan izinkan admin menghapus dirinya sendiri atau admin@admin.com
-    if (loggedInUser && loggedInUser.uid === uid) {
-        displayStatus("Tidak dapat menghapus akun Anda sendiri saat ini.", "error", addUserStatusMessage);
-        return;
-    }
-    if (emailToDelete.toLowerCase() === 'admin@admin.com') {
-        displayStatus("Tidak dapat menghapus akun admin default.", "error", addUserStatusMessage);
+    if (loggedInUser && loggedInUser.username.toLowerCase() === username.toLowerCase()) { // Prevent deleting currently logged-in user
+        displayStatus("Tidak dapat menghapus pengguna yang sedang login.", "error", addUserStatusMessage);
         return;
     }
 
-
-    const confirmed = await confirmAction(`Apakah Anda yakin ingin menghapus pengguna '${emailToDelete}'?`);
+    const confirmed = await confirmAction(`Apakah Anda yakin ingin menghapus pengguna '${username}'?`);
     if (confirmed) {
-        try {
-            // Hapus dokumen role dari Firestore terlebih dahulu
-            await window.deleteDoc(window.doc(db, USER_ROLES_COLLECTION_PATH, uid)); // Menggunakan window.deleteDoc dan window.doc
-
-            // Perhatian: Menghapus pengguna dari Firebase Auth secara langsung di client-side
-            // adalah tindakan yang TIDAK DISARANKAN untuk aplikasi produksi karena masalah keamanan.
-            // Seharusnya ini dilakukan di server (misalnya, dengan Cloud Functions).
-            // Namun, untuk tujuan demo ini, kita akan melakukannya di client.
-            // Perlu re-autentikasi admin jika sesi sudah lama
-            // const user = auth.currentUser;
-            // await user.reauthenticateWithCredential(...)
-            // await user.delete();
-
-            // Karena kita tidak bisa menghapus Auth user langsung tanpa otentikasi ulang
-            // di client side (dan tidak ada UI untuk itu), kita hanya akan menghapus role-nya dari Firestore
-            // dan akan menganggapnya "tidak aktif".
-            // Jika user harus benar-benar dihapus, ini butuh Cloud Function.
-            displayStatus("Pengguna berhasil dihapus (role dihapus, akun Auth mungkin masih ada).", "success", addUserStatusMessage);
-            renderUserList(); // Perbarui daftar pengguna
-        } catch (e) {
-            console.error("Error deleting user from Firestore:", e);
-            displayStatus(`Error menghapus pengguna: ${e.message}.`, "error", addUserStatusMessage);
-        }
+        users = users.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+        saveUsers();
+        renderUserList();
+        displayStatus("Pengguna berhasil dihapus!", "success", addUserStatusMessage);
     } else {
         displayStatus("Penghapusan pengguna dibatalkan.", "info", addUserStatusMessage);
     }
 }
-
 
 // Shows/hides sections within the User Settings modal based on login status and role.
 function showUserManagementSection() {
@@ -2718,7 +2597,7 @@ function showUserManagementSection() {
         userSettingsLoginSection.classList.remove('hidden');
         userManagementSection.classList.add('hidden');
         // Clear login fields and messages when showing login section
-        userSettingsLoginEmailInput.value = '';
+        userSettingsLoginUsernameInput.value = '';
         userSettingsLoginPasswordInput.value = '';
         displayStatus("", "", userSettingsLoginStatusMessage);
     }
@@ -2734,11 +2613,11 @@ function openUserSettingsModal() {
 // Closes the user settings modal.
 function closeUserSettingsModal() {
     userSettingsModal.classList.add('hidden');
-    displayStatus("", "", userSettingsLoginStatusMessage);
+    displayStatus("", "", userSettingsLoginStatusMessage); // Clear status messages
     displayStatus("", "", addUserStatusMessage);
 }
 
-// --- Bluetooth Printer Functions ---
+// --- Bluetooth Printer Functions (New) ---
 
 // Updates the printer connection status in the modal and button states.
 function updatePrinterConnectionStatus(message, isConnected = false) {
@@ -2746,54 +2625,134 @@ function updatePrinterConnectionStatus(message, isConnected = false) {
     if (connectPrinterBtn) connectPrinterBtn.disabled = isConnected;
     if (disconnectPrinterBtn) disconnectPrinterBtn.disabled = !isConnected;
     if (testPrintBtn) testPrintBtn.disabled = !isConnected;
+    if (printDailyReportBtn) printDailyReportBtn.disabled = !isConnected; // Disable daily report print if not connected
 }
 
-// Stores the connected printer's ID in Firestore AppState.
-async function savePrinterAddress(deviceId) {
-    if (!currentUserId) return;
+// Stores the connected printer's ID in local storage.
+function savePrinterAddress(deviceId) {
     try {
-        // FIX: Hanya update lastConnectedPrinterId di appState pribadi user
-        await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { lastConnectedPrinterId: deviceId }, { merge: true });
-        console.log("Printer ID saved to Firestore AppState:", deviceId);
+        localStorage.setItem(LOCAL_STORAGE_PRINTER_ID_KEY, deviceId);
+        console.log("Printer ID saved:", deviceId);
     } catch (e) {
-        console.error("Gagal menyimpan ID printer ke Firestore:", e);
+        console.error("Gagal menyimpan ID printer ke localStorage:", e);
     }
 }
 
-// Clears the stored printer ID from Firestore AppState.
-async function clearSavedPrinter() {
-    if (!currentUserId) return;
+// Clears the stored printer ID from local storage.
+function clearSavedPrinter() {
     try {
-        // FIX: Hanya update lastConnectedPrinterId di appState pribadi user
-        await window.updateDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), { lastConnectedPrinterId: null });
-        console.log("Printer ID dihapus dari Firestore AppState.");
+        localStorage.removeItem(LOCAL_STORAGE_PRINTER_ID_KEY);
+        console.log("Printer ID dihapus dari localStorage.");
     } catch (e) {
-        console.error("Gagal menghapus ID printer dari Firestore:", e);
+        console.error("Gagal menghapus ID printer dari localStorage:", e);
+    }
+}
+
+// Attempts to connect to a Bluetooth printer.
+async function connectPrinter() {
+    try {
+        updatePrinterConnectionStatus("Mencari printer...", false);
+        // Request any Bluetooth device, specifying the common service for printers
+        bluetoothPrinterDevice = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true, // Allow all devices to be shown
+            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] // Common Bluetooth SPP service for printers (Bluetooth Serial Port Profile)
+        });
+
+        if (!bluetoothPrinterDevice) {
+            updatePrinterConnectionStatus("Pencarian printer dibatalkan.");
+            return;
+        }
+
+        updatePrinterConnectionStatus("Menghubungkan ke printer...", false);
+        const server = await bluetoothPrinterDevice.gatt.connect();
+
+        // Add listener for GATT server disconnected event
+        bluetoothPrinterDevice.addEventListener('gattserverdisconnected', onPrinterDisconnected);
+
+        // Get the primary service and characteristic
+        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+        printerCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb'); // Printer output characteristic
+
+        updatePrinterConnectionStatus(`Printer terhubung: ${bluetoothPrinterDevice.name || bluetoothPrinterDevice.id}`, true);
+        savePrinterAddress(bluetoothPrinterDevice.id); // Save device ID for future auto-reconnection
+
+    } catch (error) {
+        console.error("Koneksi printer error:", error);
+        updatePrinterConnectionStatus(`Error: ${error.message}`);
+        bluetoothPrinterDevice = null;
+        printerCharacteristic = null;
+        clearSavedPrinter(); // Clear saved printer on connection failure
+    }
+}
+
+// Disconnects from the Bluetooth printer.
+function disconnectPrinter() {
+    if (bluetoothPrinterDevice && bluetoothPrinterDevice.gatt.connected) {
+        try {
+            bluetoothPrinterDevice.gatt.disconnect();
+            // onPrinterDisconnected will handle status update
+        } catch (error) {
+            console.error("Gagal memutuskan printer:", error);
+            updatePrinterConnectionStatus(`Gagal memutuskan: ${error.message}`);
+        }
+    } else {
+        updatePrinterConnectionStatus("Printer tidak terhubung.");
+    }
+    bluetoothPrinterDevice = null;
+    printerCharacteristic = null;
+    clearSavedPrinter(); // Clear saved printer on explicit disconnect
+}
+
+// Handler for printer disconnection event.
+function onPrinterDisconnected(event) {
+    const device = event.target;
+    console.log(`Printer ${device.name || device.id} telah terputus.`);
+    updatePrinterConnectionStatus("Printer terputus.");
+    bluetoothPrinterDevice = null;
+    printerCharacteristic = null;
+    clearSavedPrinter(); // Clear saved printer on unexpected disconnect
+}
+
+// Sends a test print.
+async function testPrint() {
+    if (!bluetoothPrinterDevice || !printerCharacteristic) {
+        updatePrinterConnectionStatus("Printer belum terhubung.");
+        return;
+    }
+
+    updatePrinterConnectionStatus("Mengirim test print...", true);
+
+    try {
+        const text = "=== TEST PRINT ===\n" +
+                     "Aplikasi Kasir POS\n" +
+                     "Tanggal: " + new Date().toLocaleString() + "\n" +
+                     "------------------\n" +
+                     "Cetak Berhasil!\n\n\n"; // Added extra line breaks for paper cutting
+
+        await sendDataToPrinter(text); // Use the new chunking function
+
+        updatePrinterConnectionStatus("Test print berhasil!", true);
+    } catch (error) {
+        console.error("Test print error:", error);
+        updatePrinterConnectionStatus(`Test print error: ${error.message}`);
     }
 }
 
 // Attempts to load and reconnect to a previously saved printer.
 async function loadSavedPrinter() {
-    if (!currentUserId) {
-        console.warn("Tidak dapat memuat printer tersimpan: UID tidak tersedia.");
-        updatePrinterConnectionStatus("Silahkan sambungkan printer");
-        return;
-    }
-
-    try {
-        // Ambil ID printer dari Firestore AppState pribadi user
-        const appStateDoc = await window.getDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId))); // Menggunakan window.getDoc dan window.doc
-        const savedPrinterId = appStateDoc.exists() ? appStateDoc.data().lastConnectedPrinterId : null;
-
-        if (savedPrinterId) {
-            updatePrinterConnectionStatus("Mencoba menghubungkan kembali ke printer terakhir...", false);
+    const savedPrinterId = localStorage.getItem(LOCAL_STORAGE_PRINTER_ID_KEY);
+    if (savedPrinterId) {
+        updatePrinterConnectionStatus("Mencoba menghubungkan kembali ke printer terakhir...", false);
+        try {
+            // Check if navigator.bluetooth and getDevices are available
             if (!navigator.bluetooth || typeof navigator.bluetooth.getDevices !== 'function') {
                 console.warn("navigator.bluetooth.getDevices is not supported in this browser/environment. Auto-reconnect will not work.");
                 updatePrinterConnectionStatus("Fitur auto-reconnect printer tidak didukung browser ini. Silahkan hubungkan secara manual.");
-                await clearSavedPrinter();
-                return;
+                clearSavedPrinter(); // Clear saved ID as it won't work for auto-reconnect
+                return; // Exit early
             }
 
+            // Reconnect to the known device by its ID
             const devices = await navigator.bluetooth.getDevices();
             const foundDevice = devices.find(d => d.id === savedPrinterId);
 
@@ -2808,49 +2767,25 @@ async function loadSavedPrinter() {
                 updatePrinterConnectionStatus(`Printer terhubung kembali: ${bluetoothPrinterDevice.name || bluetoothPrinterDevice.id}`, true);
             } else {
                 updatePrinterConnectionStatus("Printer tersimpan tidak ditemukan. Silahkan hubungkan secara manual.");
-                await clearSavedPrinter();
+                clearSavedPrinter(); // Clear invalid saved ID
             }
-        } else {
-            updatePrinterConnectionStatus("Silahkan sambungkan printer");
+        } catch (error) {
+            console.error("Gagal menghubungkan kembali ke printer tersimpan:", error);
+            updatePrinterConnectionStatus(`Gagal menghubungkan kembali: ${error.message}`);
+            bluetoothPrinterDevice = null;
+            printerCharacteristic = null;
+            clearSavedPrinter(); // Clear saved printer on reconnection failure
         }
-    } catch (error) {
-        console.error("Gagal menghubungkan kembali ke printer tersimpan:", error);
-        updatePrinterConnectionStatus(`Gagal menghubungkan kembali: ${error.message}`);
-        bluetoothPrinterDevice = null;
-        printerCharacteristic = null;
-        await clearSavedPrinter();
+    } else {
+        updatePrinterConnectionStatus("Silahkan sambungkan printer");
     }
 }
 
-async function testPrint() {
-    if (!bluetoothPrinterDevice || !printerCharacteristic) {
-        updatePrinterConnectionStatus("Printer belum terhubung.");
-        return;
-    }
-
-    updatePrinterConnectionStatus("Mengirim test print...", true);
-
-    try {
-        const text = "=== TEST PRINT ===\n" +
-                     "Aplikasi Kasir POS\n" +
-                     "Tanggal: " + new Date().toLocaleString() + "\n" +
-                     "------------------\n" +
-                     "Cetak Berhasil!\n\n\n";
-
-        const encoder = new TextEncoder();
-        await printerCharacteristic.writeValue(encoder.encode(text));
-
-        updatePrinterConnectionStatus("Test print berhasil!", true);
-    } catch (error) {
-        console.error("Test print error:", error);
-        updatePrinterConnectionStatus(`Test print error: ${error.message}`);
-    }
-}
-
-// --- Price Calculator Functions ---
+// --- Price Calculator Functions (NEW) ---
 function openPriceCalculatorModal() {
     priceCalculatorModal.classList.remove('hidden');
-    adminMenuDropdown.classList.add('hidden');
+    adminMenuDropdown.classList.add('hidden'); // Close admin menu
+    // Reset inputs
     priceCalcProductCodeInput.value = '';
     priceCalcProductNameInput.value = '';
     priceCalcModalInput.value = '0';
@@ -2859,12 +2794,12 @@ function openPriceCalculatorModal() {
     priceCalcDiscountPercentInput.value = '0';
     priceCalcSellingPriceInput.value = 'Rp 0';
     priceCalcProfitInput.value = 'Rp 0';
-    priceCalcStatusMessage.classList.add('hidden');
+    priceCalcStatusMessage.classList.add('hidden'); // Clear status message
 }
 
 function closePriceCalculatorModal() {
     priceCalculatorModal.classList.add('hidden');
-    priceCalcStatusMessage.classList.add('hidden');
+    priceCalcStatusMessage.classList.add('hidden'); // Clear status message on close
 }
 
 function calculateSellingPriceAndProfit() {
@@ -2874,7 +2809,7 @@ function calculateSellingPriceAndProfit() {
     const discountPercent = parseFloat(priceCalcDiscountPercentInput.value) || 0;
     const productCode = priceCalcProductCodeInput.value.trim();
 
-    priceCalcStatusMessage.classList.add('hidden');
+    priceCalcStatusMessage.classList.add('hidden'); // Hide previous messages
 
     if (isNaN(modal) || modal < 0 || isNaN(marginPercent) || marginPercent < 0 ||
         isNaN(taxPercent) || taxPercent < 0 || isNaN(discountPercent) || discountPercent < 0) {
@@ -2884,6 +2819,7 @@ function calculateSellingPriceAndProfit() {
         return;
     }
 
+    // Check for duplicate product code if provided
     if (productCode) {
         const isCodeRegistered = products.some(p => p.id.toLowerCase() === productCode.toLowerCase());
         if (isCodeRegistered) {
@@ -2891,8 +2827,10 @@ function calculateSellingPriceAndProfit() {
         }
     }
 
+    // Calculate Harga Jual
     const sellingPrice = modal * (1 + marginPercent / 100);
 
+    // Calculate Laba based on the user's specific formula: (margin - discount - pajak) * modal
     const marginAmount = modal * (marginPercent / 100);
     const taxAmountOnModal = modal * (taxPercent / 100);
     const discountAmountOnModal = modal * (discountPercent / 100);
@@ -2903,7 +2841,7 @@ function calculateSellingPriceAndProfit() {
     priceCalcProfitInput.value = `Rp ${profit.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-// --- QR Scanner Functions ---
+// --- QR Scanner Functions (NEW) ---
 // Initializes and starts the QR scanner
 async function startQrScanner() {
     if (!reader) {
@@ -2912,6 +2850,7 @@ async function startQrScanner() {
         return;
     }
 
+    // Ensure the scanner is stopped before starting again
     await stopQrScanner();
 
     html5QrCodeScanner = new Html5Qrcode("reader");
@@ -2920,17 +2859,21 @@ async function startQrScanner() {
 
     html5QrCodeScanner.start({ facingMode: "environment" }, qrCodeConfig,
         (decodedText, decodedResult) => {
+            // on success callback
             console.log(`QR/Barcode terdeteksi: ${decodedText}`);
             scannerResult.textContent = `Produk terdeteksi: ${decodedText}`;
             handleScannedProduct(decodedText);
-            playScanSuccessSound();
+            playScanSuccessSound(); // Play sound on successful scan
         },
         (errorMessage) => {
+            // on error callback
+            // This is constantly called, so only log for debugging purposes if needed
+            // console.warn(`QR Scan error: ${errorMessage}`);
         })
     .then(() => {
         displayStatus("Scanner dimulai. Arahkan kamera ke QR/Barcode.", "info", scannerResult);
         startScannerBtn.disabled = true;
-        stopScannerBtn.disabled = false;
+        stopScannerBtn.disabled = false; // Changed to false as it's running
     })
     .catch((err) => {
         console.error(`Error memulai QR scanner: ${err}`);
@@ -2942,6 +2885,7 @@ async function startQrScanner() {
 
 // Stops the QR scanner
 async function stopQrScanner() {
+    // Corrected condition: html5QrCodeScanner should not be null, and it should be scanning
     if (html5QrCodeScanner && typeof html5QrCodeScanner.isScanning === "function" && html5QrCodeScanner.isScanning()) {
         try {
             await html5QrCodeScanner.stop();
@@ -2961,25 +2905,27 @@ async function stopQrScanner() {
 
 // Handles the scanned product code
 function handleScannedProduct(code) {
+    // Make product ID search case-insensitive for robustness
     const product = products.find(p => p.id.toLowerCase() === code.toLowerCase());
     if (product) {
         if (product.stock !== undefined && product.stock <= 0) {
             displayStatus(`Error: Stok ${product.name} habis.`, "error", scannerResult);
             return;
         }
-        addProductToTransaction(product.id, product.name, product.price, 1);
+        addProductToTransaction(product.id, product.name, product.price, 1); // Add 1 quantity by default
         displayStatus(`Produk "${product.name}" ditambahkan.`, "success", scannerResult);
-        playScanSuccessSound();
+        playScanSuccessSound(); // Play sound on successful product addition via scan
     } else {
         displayStatus(`Produk dengan kode "${code}" tidak ditemukan.`, "error", scannerResult);
     }
 }
 
-// Function to populate the product code datalist for suggestions
+// NEW: Function to populate the product code datalist for suggestions
 function renderProductDatalist() {
     if (!productCodeDatalist) return;
-    productCodeDatalist.innerHTML = '';
+    productCodeDatalist.innerHTML = ''; // Clear existing options
 
+    // Filter and add options for product IDs
     products.forEach(product => {
         const option = document.createElement('option');
         option.value = product.id;
@@ -2994,7 +2940,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     loginScreen = document.getElementById('login-screen');
     mainAppContainer = document.getElementById('main-app-container');
 
-    loginScreenEmailInput = document.getElementById('login-email-input'); // Diubah ke email
+    loginScreenUsernameInput = document.getElementById('login-username-input');
     loginScreenPasswordInput = document.getElementById('login-password-input');
     loginScreenBtn = document.getElementById('login-screen-btn');
     loginScreenMessage = document.getElementById('login-screen-message');
@@ -3004,8 +2950,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
     totalAmountInput = document.getElementById('totalAmount');
     discountAmountInput = document.getElementById('discountAmount');
     paymentAmountInput = document.getElementById('paymentAmount');
-    paymentMethodSelect = document.getElementById('paymentMethod');
-    changeAmountHeader = document.getElementById('changeAmountHeader');
+    paymentMethodSelect = document.getElementById('paymentMethod'); // NEW
+    changeAmountHeader = document.getElementById('changeAmountHeader'); // New element
     statusElement = document.getElementById('status');
     newTransactionButton = document.getElementById('newTransaction');
     printReceiptButton = document.getElementById('printReceipt');
@@ -3020,7 +2966,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     cashierDisplay = document.getElementById('cashierDisplay');
     cashierRole = document.getElementById('cashierRole');
     logoutButton = document.getElementById('logoutButton');
-    darkModeToggle = document.getElementById('darkModeToggle');
+    darkModeToggle = document.getElementById('darkModeToggle'); // Get dark mode toggle button
 
     // Monthly Financial Bar elements
     monthlyFinancialBarContainer = document.getElementById('monthly-financial-bar-container');
@@ -3034,8 +2980,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
     priceInput = document.getElementById('price');
     quantityInput = document.getElementById('quantity');
     addRegisteredItemButton = document.getElementById('add-to-cart-btn-registered');
-    searchProductByCodeBtn = document.getElementById('searchProductByCodeBtn');
-    productCodeDatalist = document.getElementById('product-code-datalist');
+    searchProductByCodeBtn = document.getElementById('searchProductByCodeBtn'); // NEW: Search product by code button
+    productCodeDatalist = document.getElementById('product-code-datalist'); // NEW: Get datalist element
 
     // Custom product input elements
     customProductCodeInput = document.getElementById('custom-product-code');
@@ -3044,16 +2990,28 @@ document.addEventListener('DOMContentLoaded', (event) => {
     customProductQtyInput = document.getElementById('custom-quantity');
     addCustomItemButton = document.getElementById('add-to-cart-btn-custom');
 
+    // NEW: Online Shop input elements
+    onlineShopSection = document.getElementById('onlineShopSection');
+    showOnlineShopProductsButton = document.getElementById('showOnlineShopProducts');
+    marketplaceNameSelect = document.getElementById('marketplace-name');
+    otherMarketplaceNameContainer = document.getElementById('other-marketplace-name-container');
+    otherMarketplaceNameInput = document.getElementById('other-marketplace-name');
+    resiNumberInput = document.getElementById('resi-number');
+    onlineShopPriceInput = document.getElementById('online-shop-price');
+    onlineShopQuantityInput = document.getElementById('online-shop-quantity');
+    addToCartBtnOnlineShop = document.getElementById('add-to-cart-btn-online-shop');
+
+
     showRegisteredProductsButton = document.getElementById('showRegisteredProducts');
     showCustomProductsButton = document.getElementById('showCustomProducts');
-    showScannerProductsButton = document.getElementById('showScannerProducts');
+    showScannerProductsButton = document.getElementById('showScannerProducts'); // NEW
     customProductSection = document.getElementById('customProductSection');
     registeredProductSection = document.getElementById('registeredProductSection');
-    scannerSection = document.getElementById('scannerSection');
-    reader = document.getElementById('reader');
-    scannerResult = document.getElementById('scanner-result');
-    startScannerBtn = document.getElementById('startScannerBtn');
-    stopScannerBtn = document.getElementById('stopScannerBtn');
+    scannerSection = document.getElementById('scannerSection'); // NEW
+    reader = document.getElementById('reader'); // NEW
+    scannerResult = document.getElementById('scanner-result'); // NEW
+    startScannerBtn = document.getElementById('startScannerBtn'); // NEW
+    stopScannerBtn = document.getElementById('stopScannerBtn'); // NEW
 
     // Admin menu elements
     adminMenuButton = document.getElementById('adminMenuButton');
@@ -3063,7 +3021,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     openFinancialReportModalBtn = document.getElementById('open-financial-report-modal-btn');
     openExpensesModalBtn = document.getElementById('open-expenses-modal-btn');
     openUserSettingsModalBtn = document.getElementById('open-user-settings-modal-btn');
-    openPriceCalculatorModalBtn = document.getElementById('open-price-calculator-modal-btn');
+    openPriceCalculatorModalBtn = document.getElementById('open-price-calculator-modal-btn'); // NEW
     exportProductsBtn = document.getElementById('export-products-btn');
     importProductsFileInput = document.getElementById('import-products-file-input');
     importProductsBtn = document.getElementById('import-products-btn');
@@ -3114,6 +3072,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     expenseFilterEndDate = document.getElementById('expense-filter-end-date');
     applyExpenseFilterBtn = document.getElementById('apply-expense-filter-btn');
     clearExpenseFilterBtn = document.getElementById('clear-expense-filter-btn');
+    exportExpensesXLSBtn = document.getElementById('export-expenses-xls-btn'); // NEW: Get the export button
     totalExpensesDisplayModal = document.getElementById('total-expenses-display-modal');
 
 
@@ -3124,6 +3083,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     reportEndDateInput = document.getElementById('report-end-date');
     applyFinancialFilterBtn = document.getElementById('apply-financial-filter-btn');
     clearFinancialFilterBtn = document.getElementById('clear-financial-filter-btn');
+    exportFinancialReportXLSBtn = document.getElementById('export-financial-report-xls-btn');
     totalRevenueDisplay = document.getElementById('total-revenue-display');
     totalExpensesDisplay = document.getElementById('total-expenses-display');
     grossProfitDisplay = document.getElementById('gross-profit-display');
@@ -3152,7 +3112,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     detailChangeAmount = document.getElementById('detail-change-amount');
     detailItemList = document.getElementById('detail-item-list');
     closeTransactionDetailBtn = document.getElementById('close-transaction-detail-btn');
-    reprintReceiptBtn = document.getElementById('reprint-receipt-btn');
+    reprintReceiptBtn = document.getElementById('reprint-receipt-btn'); // New: Reprint receipt button in detail section
     historyFilterControls = document.getElementById('history-filter-controls');
     totalTransactionsAmount = document.getElementById('total-transactions-amount');
 
@@ -3162,16 +3122,16 @@ document.addEventListener('DOMContentLoaded', (event) => {
     confirmOkBtn = document.getElementById('confirm-ok-btn');
     confirmCancelBtn = document.getElementById('confirm-cancel-btn');
 
-    // User Settings Modal
+    // User Settings Modal (New)
     userSettingsModal = document.getElementById('user-settings-modal');
     closeUserSettingsModalBtn = document.getElementById('close-user-settings-modal');
     userSettingsLoginSection = document.getElementById('user-settings-login-section');
-    userSettingsLoginEmailInput = document.getElementById('user-settings-login-email'); // Diubah ke email
+    userSettingsLoginUsernameInput = document.getElementById('user-settings-login-username');
     userSettingsLoginPasswordInput = document.getElementById('user-settings-login-password');
     userSettingsLoginButton = document.getElementById('user-settings-login-btn');
     userSettingsLoginStatusMessage = document.getElementById('user-settings-login-status-message');
     userManagementSection = document.getElementById('user-management-section');
-    newUseEmailInput = document.getElementById('new-user-email'); // Diubah ke email
+    newUserNameInput = document.getElementById('new-user-username');
     newUserPasswordInput = document.getElementById('new-user-password');
     newUserRoleSelect = document.getElementById('new-user-role');
     addUserButton = document.getElementById('add-user-btn');
@@ -3179,7 +3139,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     userListBody = document.getElementById('user-list-body');
     emptyUserMessage = document.getElementById('empty-user-message');
 
-    // Printer Settings Modal
+    // Printer Settings Modal (New)
     openPrinterSettingsBtn = document.getElementById('open-printer-settings-btn');
     printerSettingsModal = document.getElementById('printer-settings-modal');
     closePrinterSettingsModalBtn = document.getElementById('close-printer-settings-modal');
@@ -3188,7 +3148,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     disconnectPrinterBtn = document.getElementById('disconnect-printer-btn');
     testPrintBtn = document.getElementById('test-print-btn');
 
-    // Price Calculator Modal
+    // Price Calculator Modal (NEW)
     priceCalculatorModal = document.getElementById('price-calculator-modal');
     closePriceCalculatorModalBtn = document.getElementById('close-price-calculator-modal');
     priceCalcProductCodeInput = document.getElementById('price-calc-product-code');
@@ -3204,45 +3164,82 @@ document.addEventListener('DOMContentLoaded', (event) => {
     priceCalcProfitInput = document.getElementById('price-calc-profit');
     priceCalcStatusMessage = document.getElementById('price-calc-status-message');
 
-    // Nominal Quick Pay Buttons
+    // Nominal Quick Pay Buttons (NEW)
     nominalButtonsContainer = document.getElementById('nominal-buttons-container');
     nominalButtons = document.querySelectorAll('.nominal-btn');
 
-    // Audio elements for sounds
-    scanSuccessSound = document.getElementById('scanSuccessSound');
-    transactionSuccessSound = document.getElementById('transactionSuccessSound');
+    // New: Audio elements
+    scanSuccessSound = document.getElementById('scanSuccessSound'); // Assign the new audio element
+    transactionSuccessSound = document.getElementById('transactionSuccessSound'); // Assign the updated audio element
 
-    // Reset data modal elements
+    // New: Reset data modal elements
     resetDataModal = document.getElementById('reset-data-modal');
     resetPasswordInput = document.getElementById('reset-password-input');
     resetDataConfirmBtn = document.getElementById('reset-data-confirm-btn');
     resetDataCancelBtn = document.getElementById('reset-data-cancel-btn');
     resetDataMessage = document.getElementById('reset-data-message');
 
+    // NEW: Daily Report Print Modal Elements
+    openDailyReportPrintModalBtn = document.getElementById('open-daily-report-print-modal-btn');
+    dailyReportPrintModal = document.getElementById('daily-report-print-modal');
+    closeDailyReportPrintModalBtn = document.getElementById('close-daily-report-print-modal');
+    reportPrintDateInput = document.getElementById('report-print-date');
+    dailyReportPrintStatusMessage = document.getElementById('daily-report-print-status-message');
+    printDailyReportBtn = document.getElementById('print-daily-report-btn');
+
 
     // --- Chart.js library (for financial chart placeholder) ---
+    // It's good practice to load external libraries after your DOM is ready
     const chartJsScript = document.createElement('script');
     chartJsScript.src = 'https://cdn.jsdelivr.net/npm/chart.js';
     chartJsScript.onload = () => {
+        // Initialise chart when Chart.js is loaded
         renderFinancialReportChart([]);
     };
     document.head.appendChild(chartJsScript);
 
-    // --- Inisialisasi Firebase ---
-    initializeFirebase();
+    // --- Load Data from Local Storage on App Start ---
+    loadProducts(); // This will now also call renderProductDatalist()
+    loadTransactionHistory();
+    loadExpenses();
+    loadUsers(); // New: Load users on app start (loggedInUser now from sessionStorage)
+    loadDailyRevenue();
+    loadRevenueVisibility();
+    loadDarkModeState(); // Load dark mode state
+    loadMonthlyFinancialData(); // New: Load monthly financial data
+    loadSavedPrinter(); // New: Attempt to load and reconnect to saved printer
+
+    applyDarkMode(); // Apply dark mode based on loaded state
+    checkAndResetDailyRevenue(); // This will now also reset monthly data if month changed
+    renderMonthlyFinancialBar(); // Initial render of the monthly bar
+
+    // Initial check for logged-in user to show the correct screen
+    if (loggedInUser) {
+        loginScreen.classList.add('hidden');
+        mainAppContainer.classList.remove('hidden');
+        startNewTransaction(); // Start a new transaction after successful auto-login
+    } else {
+        loginScreen.classList.remove('hidden');
+        mainAppContainer.classList.add('hidden');
+    }
+
 
     // Event listener for product code input (registered products)
     if (productCodeInput) {
+        // Auto-populate and auto-add on 'input' for productCodeInput
         productCodeInput.addEventListener('input', function() {
-            const code = this.value.trim();
+            const code = this.value.trim(); // 'this' refers to productCodeInput
             const foundProduct = products.find(p => p.id.toLowerCase() === code.toLowerCase());
 
             if (foundProduct) {
+                // Populate fields
                 productNameInput.value = foundProduct.name;
                 priceInput.value = foundProduct.price.toLocaleString('id-ID');
+                // Auto-add logic: If a complete and exact product code is entered, add it to cart
                 if (code.toLowerCase() === foundProduct.id.toLowerCase()) {
                     if (foundProduct.stock !== undefined && foundProduct.stock <= 0) {
                         displayStatus(`Error: Stok ${foundProduct.name} habis. Tidak bisa menjual produk ini.`, "error");
+                        // Clear fields so user can correct
                         productCodeInput.value = '';
                         productNameInput.value = '';
                         priceInput.value = '0';
@@ -3250,17 +3247,21 @@ document.addEventListener('DOMContentLoaded', (event) => {
                         productCodeInput.focus();
                         return;
                     }
+                    // Default quantity to 1 if not already set or invalid
                     let qty = parseInt(quantityInput.value);
                     if (isNaN(qty) || qty <= 0) qty = 1;
 
+                    // Check stock against the quantity to be added
                     const currentQtyInCart = currentTransactionItems.find(item => item.productId === foundProduct.id)?.qty || 0;
                     if (foundProduct.stock !== undefined && (currentQtyInCart + qty) > foundProduct.stock) {
                         displayStatus(`Error: Stok ${foundProduct.name} tidak cukup. Stok tersedia: ${foundProduct.stock}`, "error");
+                        // Don't clear inputs, let user adjust quantity or try another product
                         return;
                     }
 
                     addProductToTransaction(foundProduct.id, foundProduct.name, foundProduct.price, qty);
-                    displayStatus(`Produk "${foundProduct.name}" ditambahkan.`, "success");
+                    displayStatus(`Produk "${foundProduct.name}" ditambahkan.`, "success"); // Show success after adding
+                    // Clear and refocus for next entry, mimicking scanner behavior
                     productCodeInput.value = '';
                     productNameInput.value = '';
                     priceInput.value = '0';
@@ -3268,31 +3269,48 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     productCodeInput.focus();
                 }
             } else {
+                // Clear fields if product not found or partial match (don't clear if it's just typing part of a valid code)
+                // This will prevent clearing while user is still typing a valid code prefix.
+                // It only clears if the current input doesn't match any product ID at all.
                 const anyProductMatchesPrefix = products.some(p => p.id.toLowerCase().startsWith(code.toLowerCase()));
-                if (!anyProductMatchesPrefix && code !== '') {
+                if (!anyProductMatchesPrefix && code !== '') { // Only clear if no product starts with typed code and it's not empty
                     productNameInput.value = '';
                     priceInput.value = '0';
-                    displayStatus("", "");
-                } else if (code === '') {
+                    displayStatus("", ""); // Clear status if no product
+                } else if (code === '') { // Clear if input is empty
                      productNameInput.value = '';
                     priceInput.value = '0';
                     displayStatus("", "");
                 }
             }
         });
+
+        // The keydown 'Enter' listener is removed as requested for automatic adding.
+        // productCodeInput.addEventListener('keydown', function(e) {
+        //     if (e.key === 'Enter') {
+        //         e.preventDefault();
+        //     }
+        // });
     }
 
+    // NEW: Event listener for product name input (registered products)
     if (productNameInput) {
         productNameInput.addEventListener('input', function() {
-            searchProductAndPopulateByName();
+            searchProductAndPopulateByName(); // Call the new function to search by name and populate
         });
     }
 
+    // NEW: Event listener for the search button next to product code input (now less crucial due to auto-add, but can remain)
     if (searchProductByCodeBtn) {
         searchProductByCodeBtn.addEventListener('click', () => {
+            // This button might still be useful if user types a partial code and wants to explicitly search
+            // without waiting for full input or if they use the datalist.
+            // However, the auto-add on 'input' handles the primary case.
+            // For now, it will just trigger the same logic as typing the full code.
             const code = productCodeInput.value.trim();
             const foundProduct = products.find(p => p.id.toLowerCase() === code.toLowerCase());
             if (foundProduct) {
+                // Manually trigger the auto-add logic to ensure consistency
                 if (foundProduct.stock !== undefined && foundProduct.stock <= 0) {
                     displayStatus(`Error: Stok ${foundProduct.name} habis. Tidak bisa menjual produk ini.`, "error");
                     return;
@@ -3318,30 +3336,69 @@ document.addEventListener('DOMContentLoaded', (event) => {
         });
     }
 
+
+    // Function to search for product by code and populate fields (used by input and button)
+    // This function is now mostly integrated into the productCodeInput 'input' listener
+    // Keeping it here for clarity if other parts of the code still call it directly,
+    // but its role for auto-populating is now managed by the direct event listener.
+    function searchProductAndPopulate() {
+        const code = productCodeInput.value.trim();
+        const foundProduct = products.find(p => p.id.toLowerCase() === code.toLowerCase());
+
+        if (foundProduct) {
+            productNameInput.value = foundProduct.name;
+            priceInput.value = foundProduct.price.toLocaleString('id-ID');
+            // Do NOT auto-add here. Auto-add is handled by the 'input' listener's direct logic.
+            // Focus on quantity only if the product name input is not currently being used for search by name
+            if (document.activeElement !== productNameInput) {
+                quantityInput.focus(); // Focus on quantity for quick input
+            }
+        } else {
+            // Only clear if product code doesn't start with any known product ID.
+            const anyProductMatchesPrefix = products.some(p => p.id.toLowerCase().startsWith(code.toLowerCase()));
+            if (!anyProductMatchesPrefix && code !== '') {
+                productNameInput.value = '';
+                priceInput.value = '0';
+            }
+            // Do not display "not found" status here, as user might still be typing
+            // This feedback is better handled by the auto-add logic once a full code is attempted
+        }
+    }
+
+    // NEW: Function to search for product by name and populate fields
     function searchProductAndPopulateByName() {
         const name = productNameInput.value.trim();
+        // Make product name search case-insensitive for robustness
         const foundProduct = products.find(p => p.name.toLowerCase().includes(name.toLowerCase()));
 
         if (foundProduct) {
+            // Only populate code and price if the name input is long enough to suggest a unique match
+            // or if it's an exact match. This prevents flickering while typing.
+            // Or simply, always populate and let user adjust. For simplicity, we'll populate if found.
             productCodeInput.value = foundProduct.id;
             priceInput.value = foundProduct.price.toLocaleString('id-ID');
-            displayStatus(`Produk "${foundProduct.name}" ditemukan.`, "info");
+            displayStatus(`Produk "${foundProduct.name}" ditemukan.`, "info"); // Info, not error
+            // Focus on quantity after finding by name
             quantityInput.focus();
         } else {
+            // Clear code and price if no match or partial match for name
             productCodeInput.value = '';
             priceInput.value = '0';
-            displayStatus("", "");
+            displayStatus("", ""); // Clear status
         }
     }
 
 
+    // Event listener for add registered item button (now less critical due to auto-add)
+    // Keeping it for manual override if desired, but removed the explicit "add" functionality
+    // from it if the auto-add on input is successful.
     if (addRegisteredItemButton) {
         addRegisteredItemButton.addEventListener('click', function() {
             const id = productCodeInput.value.trim();
             const name = productNameInput.value.trim();
             const price = parseFloat(priceInput.value.replace(/[^0-9,-]+/g, "").replace(",", ".")) || 0;
             let qty = parseInt(quantityInput.value);
-            if (isNaN(qty) || qty <= 0) qty = 1;
+            if (isNaN(qty) || qty <= 0) qty = 1; // Default to 1 if invalid
 
             const product = products.find(p => p.id === id);
 
@@ -3354,81 +3411,98 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 return;
             }
 
+            // Added explicit check for 0 stock
             if (product && product.stock !== undefined && product.stock <= 0) {
                 displayStatus(`Error: Stok ${product.name} habis. Tidak bisa menjual produk ini.`, "error");
                 return;
             }
 
+            // Check stock for all products
             if (product && product.stock !== undefined && product.stock < qty) {
                 displayStatus(`Error: Stok ${product.name} tidak cukup. Stok tersedia: ${product.stock}`, "error");
                 return;
             }
 
             addProductToTransaction(id, name, price, qty);
+            // Clear inputs after adding
             productCodeInput.value = '';
             productNameInput.value = '';
             priceInput.value = '0';
             quantityInput.value = '1';
-            displayStatus("", "");
+            displayStatus("", ""); // Clear previous status
         });
     }
 
+    // Event listener for input changes in quantity and payment amount
     document.addEventListener('input', function(e) {
+        // Check if the input is an item quantity field within the transaction list
         if (e.target.classList.contains('item-qty-input')) {
             const index = e.target.dataset.itemIndex;
             const oldQty = currentTransactionItems[index].qty;
             let newQty = parseInt(e.target.value);
 
             if (isNaN(newQty) || newQty < 0) {
-                newQty = 0;
-                e.target.value = 0;
+                newQty = 0; // Treat invalid or negative as 0 for consistency
+                e.target.value = 0; // Update input field to 0
             }
 
             const itemProductId = currentTransactionItems[index].productId;
-            if (!itemProductId.startsWith('custom-')) {
+            // Only adjust stock for registered products in terms of validation
+            if (!itemProductId.startsWith('custom-') && !currentTransactionItems[index].isOnlineShop) {
                 const product = products.find(p => p.id === itemProductId);
                 if (product && product.stock !== undefined) {
                     const quantityDifference = newQty - oldQty;
 
+                    // If increasing quantity, check if enough stock
                     if (quantityDifference > 0 && product.stock < (currentTransactionItems[index].qty + quantityDifference)) {
                         displayStatus(`Error: Stok ${product.name} tidak cukup. Stok tersedia: ${product.stock}`, "error");
-                        e.target.value = oldQty;
+                        e.target.value = oldQty; // Revert quantity input
                         return;
                     }
+                    // No direct modification to product.stock here, only validation.
+                    // Stock is decremented only upon transaction commit.
                 }
             }
 
             currentTransactionItems[index].qty = newQty;
 
+            // Remove item if quantity becomes 0
             if (newQty === 0) {
                 currentTransactionItems.splice(index, 1);
             }
-            renderTransactionItems();
+            renderTransactionItems(); // Re-render to update total
         }
 
+        // Check if the payment amount input changed
         if (e.target.id === 'paymentAmount') {
-            calculateChange();
+            calculateChange(); // Recalculate change
         }
 
+        // New: Check if the discount amount input changed
         if (e.target.id === 'discountAmount') {
-            renderTransactionItems();
+            renderTransactionItems(); // Re-render to update total based on new discount
         }
     });
 
+    // Event listener for remove item buttons (delegated to document)
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('removeItem')) {
             const index = e.target.dataset.itemIndex;
-            currentTransactionItems.splice(index, 1);
-            renderTransactionItems();
+            currentTransactionItems.splice(index, 1); // Remove item from array
+            renderTransactionItems(); // Re-render the list
         }
     });
 
+    // Event listener for "New Transaction" button
     if (newTransactionButton) newTransactionButton.addEventListener('click', startNewTransaction);
 
+    // Event listeners for section toggling
     if (showRegisteredProductsButton) showRegisteredProductsButton.addEventListener('click', () => showSection('registered'));
     if (showCustomProductsButton) showCustomProductsButton.addEventListener('click', () => showSection('custom'));
-    if (showScannerProductsButton) showScannerProductsButton.addEventListener('click', () => showSection('scanner'));
+    if (showOnlineShopProductsButton) showOnlineShopProductsButton.addEventListener('click', () => showSection('online-shop')); // NEW Online Shop button event
+    if (showScannerProductsButton) showScannerProductsButton.addEventListener('click', () => showSection('scanner')); // NEW Scanner button event
 
+    // Event listener for "Add Custom Item" button
     if (addCustomItemButton) addCustomItemButton.addEventListener('click', function() {
         const name = customProductNameInput.value.trim();
         const price = parseFloat(customProductPriceInput.value);
@@ -3448,6 +3522,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
             return;
         }
 
+        // Validate custom product code (if provided) against registered product IDs
         if (code) {
             const isCodeRegistered = products.some(p => p.id.toLowerCase() === code.toLowerCase());
             if (isCodeRegistered) {
@@ -3456,21 +3531,70 @@ document.addEventListener('DOMContentLoaded', (event) => {
             }
         }
 
-        addProductToTransaction(code || 'custom', name, price, qty, true);
+        addProductToTransaction(code || 'custom', name, price, qty, true); // Pass true for isCustom
+        // Clear custom product inputs after adding
         if (customProductCodeInput) customProductCodeInput.value = '';
         if (customProductNameInput) customProductNameInput.value = '';
         if (customProductPriceInput) customProductPriceInput.value = '0';
         if (customProductQtyInput) customProductQtyInput.value = '1';
-        displayStatus("", "");
+        displayStatus("", ""); // Clear previous status
     });
 
+    // NEW: Event listener for "Add to Cart" button for Online Shop
+    if (addToCartBtnOnlineShop) {
+        addToCartBtnOnlineShop.addEventListener('click', function() {
+            let marketplace = marketplaceNameSelect.value;
+            const resi = resiNumberInput.value.trim();
+            const price = parseFloat(onlineShopPriceInput.value);
+            let qty = parseInt(onlineShopQuantityInput.value);
+
+            if (marketplace === 'Other') {
+                marketplace = otherMarketplaceNameInput.value.trim();
+            }
+
+            if (!marketplace || !resi || isNaN(price) || price <= 0 || isNaN(qty) || qty <= 0) {
+                displayStatus("Error: Pastikan semua kolom Online Shop terisi dengan benar!", "error");
+                return;
+            }
+
+            // Add online shop item to transaction
+            // For online shop, product ID can be a combination of marketplace and resi for uniqueness, or just a generic 'online' type
+            addProductToTransaction(`online-${marketplace}-${resi}`, `Produk Online (${marketplace})`, price, qty, false, true, marketplace, resi);
+
+            // Clear online shop inputs after adding
+            marketplaceNameSelect.value = '';
+            otherMarketplaceNameInput.value = '';
+            otherMarketplaceNameContainer.style.display = 'none';
+            resiNumberInput.value = '';
+            onlineShopPriceInput.value = '0';
+            onlineShopQuantityInput.value = '1';
+            displayStatus("", ""); // Clear previous status
+        });
+    }
+
+    // NEW: Event listener for marketplace dropdown to show/hide "Lainnya" input
+    if (marketplaceNameSelect) {
+        marketplaceNameSelect.addEventListener('change', function() {
+            if (this.value === 'Other') {
+                otherMarketplaceNameContainer.style.display = 'block';
+                otherMarketplaceNameInput.focus();
+            } else {
+                otherMarketplaceNameContainer.style.display = 'none';
+                otherMarketplaceNameInput.value = ''; // Clear input when hidden
+            }
+        });
+    }
+
+
+    // Event listener for "Cetak Struk" button (now calls processAndPrintTransaction)
     if (printReceiptButton) printReceiptButton.addEventListener('click', processAndPrintTransaction);
 
+    // Event listener for new "Proses Pembayaran" button
     if (processOnlyPaymentButton) {
-        processOnlyPaymentButton.addEventListener('click', async function() {
-            const transactionRecord = await createTransactionObjectAndDecrementStock();
+        processOnlyPaymentButton.addEventListener('click', function() {
+            const transactionRecord = createTransactionObjectAndDecrementStock(); // Validate and decrement stock
             if (transactionRecord) {
-                await commitTransactionData(transactionRecord);
+                commitTransactionData(transactionRecord); // Commit if valid
             }
         });
     }
@@ -3486,6 +3610,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
             }
         });
 
+        // Close dropdown if clicked outside
         document.addEventListener('click', (e) => {
             if (adminMenuDropdown && !adminMenuDropdown.contains(e.target) && !adminMenuButton.contains(e.target)) {
                 adminMenuDropdown.classList.add('hidden');
@@ -3496,6 +3621,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // --- Store Products Modal Event Listeners ---
     if (openStoreProductsModalBtn) {
         openStoreProductsModalBtn.addEventListener('click', () => {
+            // Check if admin is logged in before opening
             if (loggedInUser && loggedInUser.role === 'admin') {
                 storeProductsModal.classList.remove('hidden');
                 renderStoreProducts();
@@ -3509,6 +3635,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     if (closeStoreProductsModalBtn) {
         closeStoreProductsModalBtn.addEventListener('click', closeStoreProductsModal);
     }
+    // Delegation for edit and delete buttons within the table
     if (storeProductsTableBody) {
         storeProductsTableBody.addEventListener('click', (e) => {
             if (e.target.closest('.edit-product-btn')) {
@@ -3520,22 +3647,25 @@ document.addEventListener('DOMContentLoaded', (event) => {
             }
         });
     }
+    // Event listener for search input in Store Products Modal
     if (searchStoreProductsInput) {
         searchStoreProductsInput.addEventListener('input', (e) => {
             renderStoreProducts(e.target.value);
         });
     }
 
+    // --- Save Product Edit button event listener ---
     if (saveProductEditBtn) {
         saveProductEditBtn.addEventListener('click', saveProductEdit);
     }
 
+    // --- Cancel Product Edit button event listener ---
     if (cancelProductEditBtn) {
         cancelProductEditBtn.addEventListener('click', () => {
-            editProductForm.classList.add('hidden');
-            storeProductsTableContainer.classList.remove('hidden');
-            searchStoreProductsInput.classList.remove('hidden');
-            displayStatus("", "");
+            editProductForm.classList.add('hidden'); // Hide the form
+            storeProductsTableContainer.classList.remove('hidden'); // Show the product list
+            searchStoreProductsInput.classList.remove('hidden'); // Show search input
+            displayStatus("", ""); // Clear status message
         });
     }
 
@@ -3543,6 +3673,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // --- Add New Product Modal Event Listeners ---
     if (openAddProductModalBtn) {
         openAddProductModalBtn.addEventListener('click', () => {
+            // Check if admin is logged in before opening
             if (loggedInUser && loggedInUser.role === 'admin') {
                 addProductModal.classList.remove('hidden');
                 adminMenuDropdown.classList.add('hidden');
@@ -3569,20 +3700,20 @@ document.addEventListener('DOMContentLoaded', (event) => {
         cancelAddProductBtn.addEventListener('click', closeAddProductModal);
     }
 
-    // --- Expenses Modal Event Listeners ---
+    // --- Expenses Modal Event Listeners (New) ---
     if (openExpensesModalBtn) {
         openExpensesModalBtn.addEventListener('click', () => {
-             // Admin bisa melihat semua pengeluaran, kasir juga bisa melihat pengeluaran, tapi hanya admin yang bisa hapus
-            if (loggedInUser) { // Semua user bisa melihat pengeluaran
+             // Check if admin is logged in before opening
+             if (loggedInUser && loggedInUser.role === 'admin') {
                 expensesModal.classList.remove('hidden');
                 adminMenuDropdown.classList.add('hidden');
-                expenseDateInput.value = new Date().toISOString().slice(0, 10);
-                expenseSearchInput.value = '';
-                expenseFilterStartDate.value = '';
-                expenseFilterEndDate.value = '';
-                renderExpenses();
+                expenseDateInput.value = new Date().toISOString().slice(0, 10); // Set default date to today
+                expenseSearchInput.value = ''; // Clear search input
+                expenseFilterStartDate.value = ''; // Clear date filters
+                expenseFilterEndDate.value = ''; // Clear date filters
+                renderExpenses(); // Render expenses when opening modal
             } else {
-                displayStatus("Akses Ditolak: Anda harus login untuk melihat Pengeluaran.", "error");
+                displayStatus("Akses Ditolak: Anda harus login sebagai Admin untuk melihat Pengeluaran.", "error");
                 adminMenuDropdown.classList.add('hidden');
             }
         });
@@ -3593,14 +3724,16 @@ document.addEventListener('DOMContentLoaded', (event) => {
     if (addExpenseBtn) {
         addExpenseBtn.addEventListener('click', addExpense);
     }
+    // Delegate expense deletion
     if (expensesListBody) {
         expensesListBody.addEventListener('click', (e) => {
             if (e.target.closest('.delete-expense-btn')) {
                 const expenseId = e.target.closest('.delete-expense-btn').dataset.expenseId;
-                deleteExpense(expenseId); // Periksa role di dalam deleteExpense
+                deleteExpense(expenseId);
             }
         });
     }
+    // New: Event listeners for expense search and filter
     if (expenseSearchInput) {
         expenseSearchInput.addEventListener('input', renderExpenses);
     }
@@ -3611,14 +3744,19 @@ document.addEventListener('DOMContentLoaded', (event) => {
         clearExpenseFilterBtn.addEventListener('click', () => {
             expenseFilterStartDate.value = '';
             expenseFilterEndDate.value = '';
-            renderExpenses();
+            renderExpenses(); // Re-render with cleared date filters
         });
+    }
+    // NEW: Event listener for Export Expenses to XLS button
+    if (exportExpensesXLSBtn) {
+        exportExpensesXLSBtn.addEventListener('click', exportExpensesToXLS);
     }
 
 
     // --- Financial Report Modal Event Listeners ---
     if (openFinancialReportModalBtn) {
         openFinancialReportModalBtn.addEventListener('click', () => {
+            // Check if admin is logged in before opening
             if (loggedInUser && loggedInUser.role === 'admin') {
                 financialReportModal.classList.remove('hidden');
                 adminMenuDropdown.classList.add('hidden');
@@ -3636,7 +3774,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 financialReportMessageBox.classList.add('hidden');
                 financialReportMessageBox.textContent = '';
             }
-            displayStatus("", "");
+            displayStatus("", ""); // Clear main status message
         });
     }
     if (applyFinancialFilterBtn) {
@@ -3646,29 +3784,30 @@ document.addEventListener('DOMContentLoaded', (event) => {
         clearFinancialFilterBtn.addEventListener('click', () => {
             reportStartDateInput.value = '';
             reportEndDateInput.value = '';
-            calculateFinancialReport();
+            calculateFinancialReport(); // Re-run with empty filters
         });
     }
+    // NEW: Event listener for Export to XLS button (Financial Report)
+    if (exportFinancialReportXLSBtn) {
+        exportFinancialReportXLSBtn.addEventListener('click', exportFinancialReportToXLS);
+    }
+
 
     // --- Transaction History Functions ---
     if (openTransactionHistoryBtn) {
         openTransactionHistoryBtn.addEventListener('click', () => {
-            if (loggedInUser) { // Semua user bisa melihat history transaksi
-                transactionHistoryModal.classList.remove('hidden');
-                transactionDetailSection.classList.add('hidden');
-                if (transactionHistoryTableBody && transactionHistoryTableBody.parentElement) {
-                    transactionHistoryTableBody.parentElement.classList.remove('hidden');
-                }
-                if (historyFilterControls) {
-                    historyFilterControls.classList.remove('hidden');
-                }
-                totalTransactionsAmount.parentElement.classList.remove('hidden');
-                historyStartDateInput.value = '';
-                historyEndDateInput.value = '';
-                renderTransactionHistory();
-            } else {
-                displayStatus("Akses Ditolak: Anda harus login untuk melihat Riwayat Transaksi.", "error");
+            transactionHistoryModal.classList.remove('hidden');
+            transactionDetailSection.classList.add('hidden');
+            if (transactionHistoryTableBody && transactionHistoryTableBody.parentElement) {
+                transactionHistoryTableBody.parentElement.classList.remove('hidden');
             }
+            if (historyFilterControls) {
+                historyFilterControls.classList.remove('hidden');
+            }
+            totalTransactionsAmount.parentElement.classList.remove('hidden'); // Show total transactions amount
+            historyStartDateInput.value = '';
+            historyEndDateInput.value = '';
+            renderTransactionHistory();
         });
     }
     if (closeTransactionHistoryModalBtn) {
@@ -3689,6 +3828,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
             renderTransactionHistory();
         });
     }
+    // Delegation for detail and delete buttons within the transaction history table
     if (transactionHistoryTableBody) {
         transactionHistoryTableBody.addEventListener('click', (e) => {
             if (e.target.closest('.view-detail-btn')) {
@@ -3696,13 +3836,14 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 viewTransactionDetails(transactionId);
             } else if (e.target.closest('.delete-transaction-btn')) {
                 const transactionId = e.target.closest('.delete-transaction-btn').dataset.transactionId;
-                deleteTransaction(transactionId); // Periksa role di dalam deleteTransaction
+                deleteTransaction(transactionId);
             }
         });
     }
     if (closeTransactionDetailBtn) {
         closeTransactionDetailBtn.addEventListener('click', closeTransactionDetails);
     }
+    // NEW: Event listener for reprint receipt button in transaction detail
     if (reprintReceiptBtn) {
         reprintReceiptBtn.addEventListener('click', () => {
             const transactionId = reprintReceiptBtn.dataset.transactionId;
@@ -3739,6 +3880,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     if (importFileInput) {
         importFileInput.addEventListener('change', importAllData);
     }
+    // Modified resetAllDataBtn to open the new reset confirmation modal
     if (resetAllDataBtn) {
         resetAllDataBtn.addEventListener('click', openResetDataConfirmation);
     }
@@ -3759,10 +3901,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     // New: Reset Data Modal Event Listeners
     if (resetDataConfirmBtn) {
-        resetDataConfirmBtn.addEventListener('click', async () => { // Make async
+        resetDataConfirmBtn.addEventListener('click', () => {
             const enteredPassword = resetPasswordInput.value;
             if (enteredPassword === RESET_PASSWORD) {
-                await performResetAllData(); // Call the actual reset function
+                performResetAllData(); // Call the actual reset function
                 resetDataModal.classList.add('hidden');
                 displayStatus("Semua data aplikasi telah direset!", "success");
             } else {
@@ -3780,60 +3922,64 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     // --- Toggle Daily Revenue Visibility Event Listener ---
     if (toggleDailyRevenueVisibilityButton) {
-        toggleDailyRevenueVisibilityButton.addEventListener('click', async () => { // Make async
-            isRevenueVisible = !isRevenueVisible;
-            await saveAppStateToFirestore(); // Save user-specific state to Firestore
-            updateHeaderDailyRevenue();
+        toggleDailyRevenueVisibilityButton.addEventListener('click', () => {
+            isRevenueVisible = !isRevenueVisible; // Toggle the state
+            saveRevenueVisibility(); // Save the new state
+            updateHeaderDailyRevenue(); // Update display
         });
     }
 
-    // --- User Settings Modal Event Listeners ---
+    // --- User Settings Modal Event Listeners (New) ---
     if (openUserSettingsModalBtn) {
         openUserSettingsModalBtn.addEventListener('click', openUserSettingsModal);
     }
     if (closeUserSettingsModalBtn) {
         closeUserSettingsModalBtn.addEventListener('click', closeUserSettingsModal);
     }
+    // Event listener for the main login button on the initial login screen
     if (loginScreenBtn) {
         loginScreenBtn.addEventListener('click', loginUser);
     }
+    // Event listener for login button INSIDE the user settings modal
     if (userSettingsLoginButton) {
         userSettingsLoginButton.addEventListener('click', userSettingsLogin);
     }
-    if (logoutButton) {
+    if (logoutButton) { // Event listener for the main logout button in the header
         logoutButton.addEventListener('click', logoutUser);
     }
     if (addUserButton) {
         addUserButton.addEventListener('click', addNewUser);
     }
+    // Delegate user deletion
     if (userListBody) {
         userListBody.addEventListener('click', (e) => {
             if (e.target.closest('.delete-user-btn')) {
-                const uid = e.target.closest('.delete-user-btn').dataset.uid;
-                const email = e.target.closest('.delete-user-btn').dataset.email;
-                deleteUser(uid, email);
+                const username = e.target.closest('.delete-user-btn').dataset.username;
+                deleteUser(username);
             }
         });
     }
 
-    // Dark Mode Toggle Event Listener
+    // New: Dark Mode Toggle Event Listener
     if (darkModeToggle) {
-        darkModeToggle.addEventListener('click', async () => { // Make async
+        darkModeToggle.addEventListener('click', () => {
             isDarkMode = !isDarkMode;
-            await saveAppStateToFirestore(); // Save user-specific state to Firestore
-            applyDarkMode();
-            renderTransactionItems();
-            renderStoreProducts(searchStoreProductsInput.value);
-            renderExpenses();
-            calculateFinancialReport();
+            saveDarkModeState(); // Save the new state to localStorage
+            applyDarkMode(); // Apply/remove dark-mode class
+            // Re-render components that need immediate style updates based on dark mode
+            renderTransactionItems(); // To update item list background/text
+            renderStoreProducts(searchStoreProductsInput.value); // To update product table
+            renderExpenses(); // To update expenses table
+            calculateFinancialReport(); // To update chart colors
         });
     }
 
-    // --- Printer Settings Event Listeners ---
+    // --- Printer Settings Event Listeners (New) ---
     if (openPrinterSettingsBtn) {
         openPrinterSettingsBtn.addEventListener('click', () => {
             printerSettingsModal.classList.remove('hidden');
-            adminMenuDropdown.classList.add('hidden');
+            adminMenuDropdown.classList.add('hidden'); // Close admin menu if open
+            // Ensure printer status is updated when modal opens
             if (bluetoothPrinterDevice && bluetoothPrinterDevice.gatt.connected) {
                 updatePrinterConnectionStatus(`Terhubung ke: ${bluetoothPrinterDevice.name || bluetoothPrinterDevice.id}`, true);
             } else {
@@ -3856,7 +4002,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         testPrintBtn.addEventListener('click', testPrint);
     }
 
-    // --- Price Calculator Functions ---
+    // --- Price Calculator Event Listeners (NEW) ---
     if (openPriceCalculatorModalBtn) {
         openPriceCalculatorModalBtn.addEventListener('click', openPriceCalculatorModal);
     }
@@ -3866,12 +4012,13 @@ document.addEventListener('DOMContentLoaded', (event) => {
     if (calculatePriceBtn) {
         calculatePriceBtn.addEventListener('click', calculateSellingPriceAndProfit);
     }
+    // Live calculation as inputs change
     if (priceCalcModalInput) priceCalcModalInput.addEventListener('input', calculateSellingPriceAndProfit);
     if (priceCalcMarginPercentInput) priceCalcMarginPercentInput.addEventListener('input', calculateSellingPriceAndProfit);
     if (priceCalcTaxPercentInput) priceCalcTaxPercentInput.addEventListener('input', calculateSellingPriceAndProfit);
     if (priceCalcDiscountPercentInput) priceCalcDiscountPercentInput.addEventListener('input', calculateSellingPriceAndProfit);
     if (priceCalcProductCodeInput) {
-        priceCalcProductCodeInput.addEventListener('input', calculateSellingPriceAndProfit);
+        priceCalcProductCodeInput.addEventListener('input', calculateSellingPriceAndProfit); // To trigger validation message
     }
 
     // Copy buttons
@@ -3882,39 +4029,42 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
     if (copySellingPriceBtn) {
         copySellingPriceBtn.addEventListener('click', () => {
+            // Remove "Rp " and commas for copying just the number
             const sellingPriceNum = priceCalcSellingPriceInput.value.replace(/[^0-9]/g, '');
             copyTextToClipboard(sellingPriceNum, priceCalcStatusMessage);
         });
     }
 
-    // --- Nominal Quick Pay Buttons Event Listener ---
+    // --- NEW: Nominal Quick Pay Buttons Event Listener ---
     if (nominalButtonsContainer) {
         nominalButtonsContainer.addEventListener('click', (e) => {
             if (e.target.classList.contains('nominal-btn')) {
                 const nominalValue = parseInt(e.target.dataset.nominal);
                 if (!isNaN(nominalValue)) {
-                    let currentPayment = parseFloat(paymentAmountInput.value) || 0;
+                    // Get current payment amount, or 0 if empty/invalid
+                    let currentPayment = parseFloat(paymentAmountInput.value.replace(/[^0-9,-]+/g, "").replace(",", ".")) || 0; // Robust parsing
+                    // Add the nominal value to the current payment amount
                     paymentAmountInput.value = currentPayment + nominalValue;
-                    calculateChange();
+                    calculateChange(); // Recalculate change after setting nominal
                 }
             }
         });
     }
 
-    // --- QR Scanner Event Listeners ---
+    // NEW: QR Scanner Event Listeners
     if (startScannerBtn) {
         startScannerBtn.addEventListener('click', startQrScanner);
     }
     if (stopScannerBtn) {
-        stopScannerBtn.addEventListener('click', stopScanner);
+        stopScannerBtn.addEventListener('click', stopQrScanner);
     }
 
     // Event listener for Enter key on username/password inputs in login screen
-    if (loginScreenEmailInput) { // Diubah ke email
-        loginScreenEmailInput.addEventListener('keydown', function(e) {
+    if (loginScreenUsernameInput) {
+        loginScreenUsernameInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
-                e.preventDefault();
-                loginScreenPasswordInput.focus();
+                e.preventDefault(); // Prevent default form submission
+                loginScreenPasswordInput.focus(); // Move focus to password input
             }
         });
     }
@@ -3922,8 +4072,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
     if (loginScreenPasswordInput) {
         loginScreenPasswordInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
-                e.preventDefault();
-                loginUser();
+                e.preventDefault(); // Prevent default form submission
+                loginUser(); // Call the login function
             }
         });
     }
@@ -3932,67 +4082,121 @@ document.addEventListener('DOMContentLoaded', (event) => {
     if (paymentMethodSelect) {
         paymentMethodSelect.addEventListener('change', function() {
             if (paymentMethodSelect.value === 'QRIS' || paymentMethodSelect.value === 'Transfer Bank') {
+                // Set payment amount to total when QRIS or Transfer Bank is selected
                 const total = parseFloat(totalAmountInput.value.replace(/[^0-9,-]+/g, "").replace(",", ".")) || 0;
                 paymentAmountInput.value = total.toLocaleString('id-ID');
-                calculateChange();
+                calculateChange(); // Update change display
+                paymentAmountInput.disabled = true; // Disable manual input
             } else {
+                // Clear payment amount if switching back to cash or other methods
                 paymentAmountInput.value = '0';
-                calculateChange();
+                calculateChange(); // Update change display
+                paymentAmountInput.disabled = false; // Enable manual input
             }
         });
     }
 
-    // Event listener for email/password inputs in user settings modal
-    if (userSettingsLoginEmailInput) {
-        userSettingsLoginEmailInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                userSettingsLoginPasswordInput.focus();
+    // NEW: Daily Report Print Modal Event Listeners
+    if (openDailyReportPrintModalBtn) {
+        openDailyReportPrintModalBtn.addEventListener('click', () => {
+            if (loggedInUser && loggedInUser.role === 'admin') {
+                dailyReportPrintModal.classList.remove('hidden');
+                adminMenuDropdown.classList.add('hidden'); // Close admin menu if open
+                reportPrintDateInput.value = new Date().toISOString().slice(0, 10); // Set default date to today
+                dailyReportPrintStatusMessage.classList.add('hidden'); // Clear status
+                // Update printer status in this modal too
+                if (bluetoothPrinterDevice && bluetoothPrinterDevice.gatt.connected) {
+                    dailyReportPrintStatusMessage.textContent = "Printer terhubung. Siap mencetak laporan.";
+                    dailyReportPrintStatusMessage.classList.remove('hidden', 'bg-red-700', 'text-red-200');
+                    dailyReportPrintStatusMessage.classList.add('bg-green-700', 'text-green-200');
+                    printDailyReportBtn.disabled = false;
+                } else {
+                    dailyReportPrintStatusMessage.textContent = "Printer belum terhubung. Silakan sambungkan printer.";
+                    dailyReportPrintStatusMessage.classList.remove('hidden', 'bg-green-700', 'text-green-200');
+                    dailyReportPrintStatusMessage.classList.add('bg-red-700', 'text-red-200');
+                    printDailyReportBtn.disabled = true;
+                }
+            } else {
+                displayStatus("Akses Ditolak: Anda harus login sebagai Admin untuk mencetak laporan harian.", "error");
+                adminMenuDropdown.classList.add('hidden');
             }
+        });
+    }
+    if (closeDailyReportPrintModalBtn) {
+        closeDailyReportPrintModalBtn.addEventListener('click', () => {
+            dailyReportPrintModal.classList.add('hidden');
+            dailyReportPrintStatusMessage.classList.add('hidden'); // Clear status on close
+        });
+    }
+    if (printDailyReportBtn) {
+        printDailyReportBtn.addEventListener('click', () => {
+            const selectedDate = reportPrintDateInput.value;
+            printDailyReport(selectedDate);
         });
     }
 
-    if (userSettingsLoginPasswordInput) {
-        userSettingsLoginPasswordInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                userSettingsLogin();
+    // NEW: Event listener for 'Enter' key to trigger "CETAK STRUK & PROSES" or "PROSES PEMBAYARAN"
+    document.addEventListener('keydown', (e) => {
+        // Only trigger if the main app container is visible (i.e., user is logged in)
+        if (mainAppContainer && !mainAppContainer.classList.contains('hidden')) {
+            // Check for SHIFT key press to auto-fill cash payment
+            if (e.key === 'Shift') {
+                e.preventDefault(); // Prevent default SHIFT key behavior
+                if (paymentAmountInput && paymentMethodSelect.value === 'Tunai') {
+                    // Robustly parse the current value, removing non-numeric characters and handling comma as decimal separator if present
+                    let currentPaymentString = paymentAmountInput.value.replace(/[^0-9,-]+/g, "").replace(",", ".");
+                    let currentPayment = parseFloat(currentPaymentString) || 0;
+                    console.log("Current payment (parsed):", currentPayment);
+
+                    const increment = 50000; // Kelipatan 50.000
+
+                    // Jika currentPayment adalah 0 atau bukan kelipatan 50.000, mulai dari 50.000
+                    if (currentPayment === 0 || currentPayment % increment !== 0) {
+                        currentPayment = increment;
+                        console.log("Setting to initial increment:", currentPayment);
+                    } else {
+                        currentPayment += increment;
+                        console.log("Incrementing payment:", currentPayment);
+                    }
+
+                    paymentAmountInput.value = currentPayment.toLocaleString('id-ID');
+                    console.log("New payment amount in input:", paymentAmountInput.value);
+                    calculateChange();
+                } else {
+                    console.log("Payment amount input not found or payment method is not 'Tunai'.");
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault(); // Prevent default Enter key behavior (e.g., form submission)
+
+                // Check if the "CETAK STRUK & PROSES" button is visible and enabled
+                if (printReceiptButton && !printReceiptButton.classList.contains('hidden') && !printReceiptButton.disabled) {
+                    printReceiptButton.click(); // Simulate click on "CETAK STRUK & PROSES"
+                }
+                // Check if the "PROSES PEMBAYARAN" button is visible and enabled
+                else if (processOnlyPaymentButton && !processOnlyPaymentButton.classList.contains('hidden') && !processOnlyPaymentButton.disabled) {
+                    processOnlyPaymentButton.click(); // Simulate click on "PROSES PEMBAYARAN"
+                }
             }
-        });
-    }
+        }
+    });
+
 });
 
-// Pastikan data disimpan saat pengguna mencoba menutup tab/browser
-// Hanya appState yang perlu disimpan di sini, karena data lain diurus oleh real-time listener
-window.addEventListener('beforeunload', async () => {
-    // Pastikan scanner dihentikan saat unload
+// Ensure data is saved when the user tries to close the tab/browser
+window.addEventListener('beforeunload', () => {
+    saveProducts();
+    saveTransactionHistory();
+    saveExpenses();
+    saveUsers(); // Save users and loggedInUser (to sessionStorage) on unload
+    saveDailyRevenue();
+    saveRevenueVisibility();
+    saveDarkModeState(); // New: Save dark mode state on unload
+    saveMonthlyFinancialData(); // Save monthly financial data on unload
+    // No need to save printer connection here, it's handled by specific printer functions
+    // and device objects cannot be directly stored. Only the ID is saved for auto-reconnect.
+
+    // Ensure scanner is stopped on unload
     if (html5QrCodeScanner && typeof html5QrCodeScanner.isScanning === "function" && html5QrCodeScanner.isScanning()) {
         html5QrCodeScanner.stop().catch(err => console.warn("Error stopping scanner on unload:", err));
-    }
-
-    // Save app state user-specific one last time, terutama untuk lastConnectedPrinterId jika ada
-    if (currentUserId && db) {
-        try {
-            const appStateData = {
-                isRevenueVisible: isRevenueVisible,
-                isDarkMode: isDarkMode,
-                lastConnectedPrinterId: bluetoothPrinterDevice ? bluetoothPrinterDevice.id : null
-            };
-            await window.setDoc(window.doc(db, USER_APP_STATE_DOC_PATH(currentUserId)), appStateData, { merge: true }); // Menggunakan window.setDoc dan window.doc
-            console.log("App state pribadi berhasil disimpan saat unload.");
-        } catch (e) {
-            console.error("Gagal menyimpan app state pribadi saat unload:", e);
-        }
-    }
-
-    // Save global store metrics one last time (dilakukan di commitTransactionData, tapi ini jaga-jaga)
-    // FIX: Tambahkan saveStoreMetricsToFirestore di sini juga jika ada perubahan yang belum disimpan
-    if (db) {
-        try {
-            await saveStoreMetricsToFirestore();
-            console.log("Store metrics berhasil disimpan saat unload.");
-        } catch (e) {
-            console.error("Gagal menyimpan store metrics saat unload:", e);
-        }
     }
 });
